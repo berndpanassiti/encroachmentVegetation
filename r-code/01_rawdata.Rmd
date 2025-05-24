@@ -1,0 +1,128 @@
+---
+title: "Creation of rawdata"
+author: Bernd Panassiti
+output: html_document
+date: "2024-11-28"
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_knit$set(root.dir='../')                     # definining working directory; or normalizePath('../')
+opts_chunk$set(fig.align='center',                # aligns all figures
+                echo=TRUE,                        # shows r-code
+                message=FALSE,                    # suppresses library outputs
+                warnings=FALSE,                   # suppresses library outputs
+                tidy=TRUE,  # prevents the source code from running off a pdf page
+                dev='pdf')
+```
+
+```{r}
+#Install/load pacman
+if(!require(pacman)){install.packages("pacman");require(pacman)}
+#Install packages
+p_load("readxl")
+```
+
+# Vegetation
+
+veg_layer_red (ohne cf. Arten und Alchemilla pratensis zu A. pratensis agg. hinzugefügt, Viola sp. raus) 
+
+```{r}
+GermanSl_dbf <- foreign::read.dbf("data/rawdata/ecodbase.dbf")
+veg_xlsx <- readxl::read_excel("data/rawdata/veg.xlsx")
+veg_layer_red_xlsx <- readxl::read_excel("data/rawdata/veg_layer_red.xlsx")
+vegTreatment_xlsx  <- readxl::read_excel("data/rawdata/veg_treatment.xlsx")
+```
+
+# treatments
+```{r}
+treatment_xlsx <- read_excel("data/rawdata/treatment_neu.xlsx")
+```
+
+#Plot Data
+```{r}
+plot_data_xlsx <- readxl::read_excel("data/rawdata/Plot_Data.xlsx",
+                                     col_types = c("text", "numeric", "numeric", 
+         "numeric", "text", "text", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "numeric", "numeric", 
+         "numeric", "date", "numeric", "numeric", 
+         "numeric", "numeric"), na = "NA")
+
+coords_xlsx = readxl::read_excel("data/rawdata/Koordinaten_Plots.xlsx")
+
+```
+
+
+#Zeigerwerte
+```{r}
+zeigerwerte_xlsx <- read_excel("data/rawdata/Zeigerwerte_ergaenzt.xlsx")
+zeigerwerte_ergaenzt_xlsx <- readxl::read_excel("data/rawdata/Zeigerwerte_ergaenzt.xlsx")
+
+
+zeigerwerte_mittel_xlsx <- read_excel("data/rawdata/Zeigerwerte_mittel_hl_sl.xlsx")
+
+lichtzahlen_xlsx <- read_excel("data/rawdata/Lichtzahlen.xlsx")
+temperaturzahlen_xlsx <- read_excel("data/rawdata/Temperaturzahlen.xlsx")
+kontizahlen_xlsx <- read_excel("data/rawdata/Kontinentalitaetszahlen.xlsx")
+feuchtezahlen_xlsx <- read_excel("data/rawdata/Feuchtezahlen.xlsx")
+reaktionszahlen_xlsx <- read_excel("data/rawdata/Reaktionszahlen.xlsx")
+naehrstoffzahlen_xlsx <- read_excel("data/rawdata/Naehrstoffzahlen.xlsx")
+salzzahlen_xlsx <- read_excel("data/rawdata/Salzzahlen.xlsx")
+temperaturzahlen_xlsx <- readxl::read_excel("data/rawdata/Temperaturzahlen.xlsx")
+```
+
+
+# Forest associatoin
+```{r}
+waldarten_xlsx <- read_excel("data/rawdata/Waldarten.xlsx")
+```
+
+# Red list
+```{r}
+rl_bayern_xlsx <- read_excel("data/rawdata/RL_Bayern.xlsx")
+```
+
+# bioflor, phytosociology, biotop $30
+# Coordinates
+```{r}
+bioflorBiotop_xlsx <- read_excel("data/rawdata/BiolFlor_biotop.xlsx")
+```
+
+
+# save
+```{r}
+save(
+  plot_data_xlsx,coords_xlsx,
+  veg_xlsx,veg_layer_red_xlsx,
+  vegTreatment_xlsx,
+  GermanSl_dbf,
+  treatment_xlsx,
+  #indicator values
+  zeigerwerte_xlsx,zeigerwerte_ergaenzt_xlsx,
+  zeigerwerte_mittel_xlsx,
+  
+  lichtzahlen_xlsx,
+  temperaturzahlen_xlsx,
+  kontizahlen_xlsx,
+  feuchtezahlen_xlsx,
+  reaktionszahlen_xlsx,
+  naehrstoffzahlen_xlsx,
+  salzzahlen_xlsx,
+  temperaturzahlen_xlsx,
+  
+  # forest association, RL
+  waldarten_xlsx,rl_bayern_xlsx,
+  bioflorBiotop_xlsx,
+  file="data/rawdata.RData")
+```

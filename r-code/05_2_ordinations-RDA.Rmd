@@ -1,0 +1,272 @@
+---
+title: "RDA and Variation partitioning"
+author: "Bernd Panassiti"
+output: html_document
+date: 'created: 23.04.2025, last modified: `r format(Sys.Date(), format="%d.%m.%Y")`'
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+```{r setup, include=FALSE}
+library(knitr)
+opts_knit$set(root.dir='../')                     # definining working directory; or normalizePath('../')
+opts_chunk$set(fig.align='center',                # aligns all figures
+                echo=TRUE,                        # shows r-code
+                message=FALSE,                    # suppresses library outputs
+                warnings=FALSE,                   # suppresses library outputs
+                tidy=TRUE,  # prevents the source code from running off a pdf page
+                dev='pdf')
+```
+
+```{r}
+#Install/load pacman
+if(!require(pacman)){install.packages("pacman");require(pacman)}
+#Install packages
+p_load(tidyverse,dplyr,vegan,ggplot2,ggpubr,magrittr)
+```
+
+# load working data
+```{r}
+load("data/workingdata.RData")
+```
+
+
+# RDA
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2025)
+
+RDA <- rda(spec_RDA.sqrt, env_RDA[,-1], covar_RDA)
+summary(RDA)
+
+anova.cca(RDA, step = 1000) #globaler Test des RDA Ergebnisses
+#-> das Ergebnis der RDA ist signifikant
+
+ordiplot(RDA) #Ordiplot
+
+smry <- summary(RDA)
+RDAscoresSites  <- data.frame(smry$sites[,1:2])       # sites
+RDAscoresSpecies  <- data.frame(smry$species[,1:2])     # species
+
+```
+
+1. RDA axis related to woody encroachment
+
+# Variation Partioning
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2025)
+
+
+
+env_RDA.CovJuv <- env_RDA %>% 
+  dplyr::select(Cover_Juvenile)
+
+spe.part.all <- vegan::varpart(spec_RDA.sqrt, 
+                        env_RDA.CovJuv,
+                        covar_RDA)
+
+plot(spe.part.all,
+     Xnames = c( "Cover Juvenile", "Alm"), # name the partitions
+     bg = c("seagreen3", "mediumpurple"), alpha = 80, # colour the circles
+     digits = 2, # only show 2 digits
+     cex = 1.5) #<- Venn diagramm mit Farben und Beschriftung
+```
+
+
+# Boxplots based on RDA scores
+
+Waldartenliste
+1.1: geschlossener Wald
+1.2: Waldränder und –verlichtungen
+2.1: Wald wie im Offenland
+2.2: auch Wald, aber Schwerpunkt Offenland
+
+B - Bäume, S - Sträucher, K - Kräuter, E - Epiphyten
+
+
+
+```{r}
+df = RDAscoresSpecies
+df$species = rownames(RDAscoresSpecies)
+
+df <- merge(df, waldarten, by = "species", all.x = TRUE)
+
+
+df$agriculturalGrassland = 0
+
+# species associated with agricultural grassland
+speciesAgriculturalGrassland = c(
+  "Achillea millefolium agg.", "Cynosurus cristatus",
+  "Euphrasia picta", "Galium album",
+  "Galium album subsp. album","Heracleum sphondylium",
+  "Phleum pratense", "Poa alpina",
+  "Ranunculus montanus","Trifolium repens")
+
+
+df[which(df$species %in% speciesAgriculturalGrassland),"agriculturalGrassland"] = 1
+RDAscoresSpecies = df
+```
+
+## Boxplot - Agricultural species
+```{r}
+df = RDAscoresSpecies
+
+df$agriculturalGrassland <- factor(df$agriculturalGrassland,
+                                    levels = c(0, 1),
+                                    labels = c("Non-agricultural", "Agricultural"))
+
+n_labels <- df %>%
+  group_by(agriculturalGrassland) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(y = min(df$RDA1, na.rm = TRUE) - 0.05)
+
+# Create plot
+gRDA_agriculturalGrassland = ggplot(df, aes(x = agriculturalGrassland, y = RDA1)) +
+  geom_boxplot(outlier.shape = NA, fill = "#E0E0E0", color = "black") +
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 4, color = "red") +
+    stat_compare_means(method = "wilcox.test", 
+                     label = "p.signif", 
+                     comparisons = combn(levels(df$agriculturalGrassland), 2, 
+                                         simplify = FALSE)) +
+  geom_text(data = n_labels,
+            aes(x = agriculturalGrassland, y = y, label = paste("n =", n)),
+            inherit.aes = FALSE, size = 4) +
+  labs(x = "Land Use Type", y = "RDA1 Score",
+       title = "") +
+  theme_minimal();gRDA_agriculturalGrassland
+```
+
+## Boxplot - Forest association
+```{r}
+df = RDAscoresSpecies
+
+# Replace NA in Waldart with "Others"
+df <- df %>%
+  mutate(Waldart = fct_explicit_na(Waldart, na_level = "Others"),  # ensure NA is labeled
+         Waldart = ifelse(Waldart == "Others",
+                          "Others",
+                          substr(as.character(Waldart), 2, nchar(as.character(Waldart)))))  # remove first letter
+
+# Ensure it's a factor (optional: reorder if you want by mean RDA1)
+df$Waldart <- factor(df$Waldart)
+
+df%<>%dplyr::filter(Waldart %in% c(1.1,2.1))
+df <- droplevels(df)
+
+# Calculate sample sizes
+n_labels_wald <- df %>%
+  group_by(Waldart) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(y = min(df$RDA1, na.rm = TRUE) - 0.05)
+
+# Plot
+gRDA_forest = ggplot(df, aes(x = Waldart, y = RDA1)) +
+  geom_boxplot(outlier.shape = NA, fill = "white",
+               color = "black") +
+  stat_summary(fun = mean, geom = "point", 
+               shape = 20, size = 3, color = "red") +
+  stat_compare_means(method = "wilcox.test", 
+                     label = "p.signif", 
+                     comparisons = combn(levels(df$Waldart), 2, 
+                                         simplify = FALSE)) +
+  geom_text(data = n_labels_wald,
+            aes(x = Waldart, y = y, label = paste("n =", n)),
+            inherit.aes = FALSE, size = 3.5) +
+  labs(x = "Forest association", y = "RDA1-Value", title = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1));gRDA_forest
+```
+
+
+# Linear Regression: RDA1 vs Forage Value
+
+```{r}
+df <- bioflorBiotop %>%
+  mutate(FW = as.numeric(FW)) %>%      # convert FW to numeric
+  rename(`Forage Value` = FW,
+         `RDA1-Value` = RDA1) %>%      # rename for plotting
+  filter(!is.na(`Forage Value`), !is.na(`RDA1-Value`))  # remove NA values
+
+
+gRDA_forage = ggplot(df, aes(x = `Forage Value`, y = `RDA1-Value`)) +
+  geom_point(color = "steelblue") +
+  geom_smooth(method = "lm", se = TRUE, color = "darkred", fill = "pink") +
+  stat_regline_equation(
+    aes(label = after_stat(eq.label)),
+    label.x = 5,
+    label.y = max(df$`RDA1-Value`, na.rm = TRUE)
+  ) +
+  stat_cor(
+    aes(label = after_stat(paste(rr.label, p.label, sep = "~`,`~"))),
+    label.x = 5,
+    label.y = max(df$`RDA1-Value`, na.rm = TRUE) - 0.05
+  ) +
+  theme_minimal() +
+  labs(
+    title = "",
+    x = "Forage Value",
+    y = "RDA1-Value"
+  ); gRDA_forage
+```
+
+
+
+# $30 Biotope
+```{r}
+df <- bioflorBiotop %>%
+   mutate(Biotopart = recode(Biotopart,
+                                 "ja" = "yes",
+                                 "nein" = "no")) %>%
+  mutate(Biotopart = as.factor(Biotopart)) %>% # convert Biotopart to factor
+  rename(`§30 biotope species` = Biotopart,
+         `RDA1-Value` = RDA1) %>%      # rename for plotting
+  filter(!is.na(`§30 biotope species`),
+         !is.na(`RDA1-Value`))  # remove NA values
+
+
+
+# Calculate sample sizes
+n_labels_biotope <- df %>%
+  group_by(`§30 biotope species`) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(y = min(df$RDA1, na.rm = TRUE) - 0.05)
+
+gRDA_biotope = ggplot(df, aes(x = `§30 biotope species`, y = `RDA1-Value`)) +
+  geom_boxplot(outlier.shape = NA, fill = "white", color = "black") +
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 3, color = "red") +
+  stat_compare_means(method = "wilcox.test", label = "p.signif", 
+                     comparisons = combn(levels(df$`§30 biotope species`), 
+                                         2, simplify = FALSE)) +
+  geom_text(data = n_labels_biotope,
+            aes(x = `§30 biotope species`, y = y, label = paste("n =", n)),
+            inherit.aes = FALSE, size = 3.5) +
+  labs(x = "§30 biotope species", y = "RDA1-Value", title = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1));gRDA_biotope
+```
+
+
+
+# Table 33
+Tafel 33: Alpine Rase
+34 & 35 zusammengefasst: Grünland mäßig
+
+frischer Standorte, Magerstandorte
+
+Bewertungindex: bei 1, schon biotope als gesichert
+
+hypothese: bei früher beweiundg verschiebt sich mehr richtung 34/35
+
+```{r}
+save(
+  gRDA_forage,gRDA_biotope,
+  gRDA_agriculturalGrassland, gRDA_forest,
+  file="results/RDA_plots.RData")
+```
+

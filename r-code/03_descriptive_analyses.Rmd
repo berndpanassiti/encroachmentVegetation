@@ -1,0 +1,478 @@
+---
+title: "Descriptive analyses"
+author: "Bernd Panassiti"
+date: 'created: 28.11.2024, last modified: `r format(Sys.Date(), format="%d.%m.%Y")`'
+output: pdf_document
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_knit$set(root.dir='../')                     # definining working directory; or normalizePath('../')
+opts_chunk$set(fig.align='center',                # aligns all figures
+                echo=TRUE,                        # shows r-code
+                message=FALSE,                    # suppresses library outputs
+                warnings=FALSE,                   # suppresses library outputs
+                tidy=TRUE,  # prevents the source code from running off a pdf page
+                dev='pdf')
+```
+
+# Load packages
+```{r}
+#Install/load pacman
+if(!require(pacman)){install.packages("pacman");require(pacman)}
+#Install packages
+p_load(tidyverse,dplyr,ggplot2,ggpubr,rcompanion,magrittr)
+```
+
+# Load working data
+```{r}
+load("data/workingdata.RData")
+```
+
+
+# Number of species
+```{r Grundlegende Statistik}
+# Mittlere Artenzahl aller Almen im verbuschten und unverbuschten Bereich
+
+result <- plot_data %>%
+  group_by(Verbuschung) %>%
+  summarise(
+    Mittlere_Artenzahl = mean(Gesamtartenzahl),
+    Standardabweichung = sd(Gesamtartenzahl),
+    Median_Artenzahl = median (Gesamtartenzahl))
+result
+mean(plot_data$Gesamtartenzahl)
+sd(plot_data$Gesamtartenzahl)
+# Mittelwert verbuscht   = 36,1
+# Mittelwert unverbuscht = 38,4
+
+veg_layer_red <- t(veg_layer_red)
+veg_layer_red <- as.data.frame(veg_layer_red)
+veg_layer_red$species <- rownames(veg_layer_red)
+rownames(veg_layer_red) <- NULL
+
+veg_layer_red_long <- veg_layer_red %>%
+  pivot_longer(
+    cols = -species,                # Alle Spalten außer "Artname"
+    names_to = "Plot_ID",
+    values_to = "Deckungsgrad"
+  )
+
+veg_artenzahlen <- merge(veg_layer_red_long, plot_data, by = "Plot_ID", all.x = TRUE)
+
+veg_artenzahlen <- veg_artenzahlen %>%
+  dplyr::select(Plot_ID, species, Alm, Gesamtartenzahl, Verbuschung, Cover_Juvenile, Deckungsgrad)
+
+
+veg_artenzahlen <- veg_artenzahlen %>%
+  filter(Deckungsgrad != 0)
+
+
+veg_artenzahlen %>%
+  group_by(Verbuschung) %>%
+  summarise(Anzahl_Arten = n_distinct(species)) 
+
+
+```
+
+Number of species
+control: 188
+treatment: 214
+
+
+
+```{r}
+# Artentabelle vorbereiten: Doppelte Arten summieren, Spalte von veg_summed in richtige Reihenfolge bringen --> Artenzahlen in Excel berechnen und in Plot_Data hinzufügen
+
+
+veg_summed <- veg[, -2] # Layerspalte löschen
+veg_summed <- aggregate(. ~ species, data = veg_summed, FUN = sum) # gleiche Arten addieren
+veg_summed <- veg_summed %>% column_to_rownames("species")
+veg_summed <- t(veg_summed)
+veg_summed <- as.data.frame(veg_summed)
+veg_summed <- veg_summed %>% rownames_to_column("Plot_ID")
+veg_summed <- veg_summed[match(plot_data$Plot_ID, veg_summed$Plot_ID), ]
+rownames(veg_summed) <- NULL
+
+#openxlsx::write.xlsx(veg_summed, file = "/results/vegetationTable_sum.xlsx")
+```
+
+
+
+
+# Boxplots for species richness
+## Comparison of control and treatment
+```{r}
+df <- plot_data %>%
+  mutate(
+    Verbuschung = factor(Verbuschung, levels = c(0, 1), 
+                         labels = c("unverbuscht", "verbuscht")))
+
+df <- df %>%
+  mutate(Plot_ID = str_replace(Plot_ID, "^(.).", "\\1")) # Behalte den ersten Buchstaben und entferne den zweiten
+
+
+plot_data_paired <- df %>%
+  pivot_wider(names_from = Verbuschung, values_from = Gesamtartenzahl, id_cols = Plot_ID) %>%
+  drop_na()
+
+t_test_result <- t.test(plot_data_paired$unverbuscht, plot_data_paired$verbuscht, paired = TRUE)
+
+# Ergebnisse anzeigen
+print(t_test_result)
+
+ggplot(df, aes(x = Verbuschung, y = Gesamtartenzahl, fill = Verbuschung)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(
+    title = "Artenzahlen in verbuschten und unverbuschten Plots",
+    x = "",
+    y = "Anzahl der höheren Pflanzenarten",
+  ) +
+  scale_fill_manual(values = c("unverbuscht" = "#4CAF50", "verbuscht" = "#FF6347"))+
+ ggpubr::stat_compare_means(
+    comparisons = list(c("verbuscht", "unverbuscht")),
+    paired = TRUE,
+    label = "p.signif",  # Zeigt Signifikanz
+    label.x = 1.5,  # Position des Textes auf der x-Achse
+    label.y = max(plot_data$Gesamtartenzahl) + 1  # Position des Textes auf der y-Achse
+  ) +
+  annotate("text", x = 1.5, y = max(plot_data$Gesamtartenzahl) + 2, label = paste("p =", format(t_test_result$p.value, digits = 3)))
+```
+
+Significant different plant species richness between control and treatment.
+
+## Differences between pastures
+```{r Boxplots}
+df <- plot_data %>%
+  mutate(
+    Verbuschung = factor(Verbuschung, levels = c(0, 1), 
+                         labels = c("unverbuscht", "verbuscht")))
+
+df <- df %>%
+  mutate(Plot_ID = str_replace(Plot_ID, "^(.).", "\\1")) # Behalte den ersten Buchstaben und entferne den zweiten
+
+
+
+
+# Für die einzelnen Almen
+hist(df$Gesamtartenzahl, main = "Histogramm von Gesamtartenzahl", xlab = "Artenzahlen", breaks = 20)
+shapiro.test(df$Gesamtartenzahl) # --> Normalverteilt
+#levene Test für Homogenität
+car::leveneTest(df$Gesamtartenzahl, plot_data$Alm) #--> keine Homgentität der Varianzen, Annahmen für Anova nicht erfüllt -> Kruskal Wallis Test
+
+
+
+#Kruskal Wallis Test
+kruskal.test(df$Gesamtartenzahl~plot_data$Alm)
+
+
+#pairwise.wilcox.test(plot_data_spTable$Gesamtartenzah,
+                      # plot_data$Alm, 
+                      # p.adjust="bonferroni")
+
+#dunn-Test mit Buchstaben
+PT2 = FSA::dunnTest(Gesamtartenzahl ~ Alm, data=plot_data,
+              method="holm")
+
+PT3= PT2$res
+
+PT3
+#openxlsx::write.xlsx(PT3, file = "results/Dunn_Test_Teststatistik.xlsx")
+
+### Create compact letter display
+cld <- rcompanion::cldList(P.adj ~ Comparison, data=PT3,
+        threshold  = 0.05)
+# Leerzeichen für Königsbach 2 hinzufügen
+cld$Group <- gsub("Königsbachalm2", "Königsbachalm 2", cld$Group)
+
+set.seed(42)  # Seed für Reproduzierbarkeit
+custom_colors <- c(
+  "Saletalm" = "darkgreen",
+  "Engertalm" = "#3357FF",
+  "Bindalm" = "darkorange",
+  "Königsbachalm" = "springgreen2",
+  "Halsalm" = "peachpuff",
+  "Königsbachalm 2" = "firebrick",
+  "Mittereisalm" = "lightskyblue",
+  "Königsbergalm" = "gold"
+)
+
+
+# Mit Signifikanzbuchstaben und Mittelwert
+ggplot(df, aes(x = Alm, y = Gesamtartenzahl, fill = Alm)) +
+  geom_boxplot(outlier.shape = NA) +  # Boxplot ohne Outlier
+  geom_jitter(width = 0.2, size = 2, alpha = 0.8, shape = 21, color = "black", stroke = 0.5) +
+  # Buchstaben aus dem cld-DataFrame hinzufügen
+  geom_text(data = cld, aes(x = Group, y = max(plot_data$Gesamtartenzahl) + 1, 
+                            label = Letter), 
+            inherit.aes = FALSE, vjust = 0) +
+  theme_minimal() +
+  labs(
+    title = "Comparison of plant species richness between mountain pastures",
+    x = "Mountain pasture",
+    y = "Plant species richness",
+    shape = "Legend"
+  ) +
+  scale_fill_manual(values = custom_colors) +
+  theme(
+    axis.text.x = element_text(size = rel(0.8), angle = 45, hjust = 1))+
+    stat_summary(
+    fun = mean, 
+    aes(shape = "Mittelwert"), # Verknüpfung mit dem Legendenwert
+    geom = "point", 
+    size = 5,
+    color = "black", 
+    fill = "white",
+    show.legend = FALSE
+  )
+
+```
+
+
+## Separately for each mountain pastures
+### wilcox test
+```{r}
+# Gepaarter Wilcoxon-Test und T-Test
+plot_data_t_test <- data.frame(
+  Plot_ID = plot_data$Plot_ID,
+  Alm = plot_data$Alm,
+  Verbuschung = plot_data$Verbuschung,
+  Gesamtartenzahl = plot_data$Gesamtartenzahl
+)
+
+# Normalverteilung prüfen
+plot_data_t_test %>%
+  group_by(Alm, Verbuschung) %>%
+  summarise(
+    p_value = shapiro.test(Gesamtartenzahl)$p.value,
+    .groups = "drop"
+  ) # --> Manche Almen haben keine normalverteilten Artenzahlen!
+
+
+plot_data_t_test <- plot_data_t_test %>%
+  mutate(Plot_ID = str_replace(Plot_ID, "^(.).", "\\1")) # Behalte den ersten Buchstaben und entferne den zweiten
+
+
+# Gepaarten Wilcoxon-Test für jede Alm
+wilcox_test_results <- plot_data_t_test %>%
+  filter(!is.na(Gesamtartenzahl)) %>% # Fehlende Werte entfernen
+  group_by(Alm) %>%
+  summarise(
+    wilcox_test = list(
+      wilcox.test(
+        Gesamtartenzahl[Verbuschung == 0],
+        Gesamtartenzahl[Verbuschung == 1],
+        paired = TRUE
+      )
+    )
+  )
+
+#  Ergebnisse
+wilcox_p_values <- wilcox_test_results %>%
+  mutate(p_value = map_dbl(wilcox_test, ~ .x$p.value))
+
+# Ergebnisse mit p-Werten 
+wilcox_p_values # --> Keine Signifikanz
+
+```
+
+### Plot
+```{r}
+df <- plot_data %>%
+  mutate(
+    Verbuschung = factor(Verbuschung, levels = c(0, 1), 
+                         labels = c("unverbuscht", "verbuscht")))
+
+df <- df %>%
+  mutate(Plot_ID = str_replace(Plot_ID, "^(.).", "\\1")) # Behalte den ersten Buchstaben und entferne den zweiten
+
+
+annotation_data_neu <- wilcox_p_values
+annotation_data_neu <- annotation_data_neu %>%
+  mutate(
+    significance = case_when(
+      p_value < 0.001 ~ "***", # Drei Sternchen für p < 0.001
+      p_value < 0.01  ~ "**",  # Zwei Sternchen für p < 0.01
+      p_value < 0.05  ~ "*",   # Ein Sternchen für p < 0.05
+      TRUE            ~ "ns"   # Kein Sternchen, wenn nicht signifikant
+    )
+  )
+annotation_data_neu$Alm <- as.factor(annotation_data_neu$Alm)
+
+
+
+df1 <- data.frame(
+  Alm = df$Alm,
+  Verbuschung = df$Verbuschung,
+  Gesamtartenzahl = df$Gesamtartenzahl)
+
+# Step 1: Create df2 and AlmLabel before arranging
+df2 <- plot_data %>%
+  group_by(Alm) %>%
+  summarise(elv = round(mean(Elevation)), .groups = "drop") %>%
+  mutate(AlmLabel = paste0(Alm, "\n(", elv, " m asl)"))
+
+# Step 2: Order by elevation and set factor levels accordingly
+df2 <- df2 %>%
+  arrange(elv) %>%
+  mutate(AlmLabel = factor(AlmLabel, levels = AlmLabel))
+
+# Step 3: Merge and preserve factor levels
+df3 <- merge(df1, df2, by = "Alm", all.x = TRUE)
+df3$AlmLabel <- factor(df3$AlmLabel, levels = levels(df2$AlmLabel))
+
+plot_data_reduziert <- df3
+
+
+line_y_position <- max(plot_data_reduziert$Gesamtartenzahl, na.rm = TRUE) + 5
+annotation_data_neu$line_y_position <- max(plot_data_reduziert$Gesamtartenzahl, na.rm = TRUE) + 1
+annotation_data_neu = merge(annotation_data_neu,df2,by="Alm",all.x = TRUE)
+
+
+# Berechnung der Stichprobenanzahl für jedes Boxplotpaar
+sample_sizes <- plot_data_reduziert %>%
+  group_by(Alm, AlmLabel,Verbuschung) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  pivot_wider(names_from = Verbuschung, values_from = n, values_fill = 0) %>%
+  mutate(label = paste0("n = ", unverbuscht, " | ", verbuscht))
+
+
+Appendix_S4 = ggplot(plot_data_reduziert, aes(x = AlmLabel, y = Gesamtartenzahl, fill = Verbuschung)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(
+    title = "",
+    x = "",
+    y = "Plant species richness",
+    fill = "Treaments") +
+    scale_fill_manual("Treatments:",values = 
+                       rev(ggsci::pal_jco("default")(3))[c(2,3)],
+                    labels = c("unverbuscht" = "Control", "verbuscht" = "Encroachment")) +
+  stat_summary(# Mittelwerte anzeigen und zur Legende hinzufügen
+    fun = mean, 
+    geom = "point", 
+    aes(group = Verbuschung, shape = "Mittelwert"),  # Gruppierung beibehalten
+    position = position_dodge(width = 0.75),# Verschiebt Quadrate passend zu den Boxplots
+    size = 4,  # Größe des Quadrats  # Quadrat
+    color = "black", 
+    fill = "white",
+    show.legend = FALSE) +
+  geom_text( # Text für die Stichprobenanzahl unter den Boxplots
+    data = sample_sizes,
+    aes(x = AlmLabel, y = -1, label = label),
+    inherit.aes = FALSE,
+    vjust = 2,  # Textposition anpassen
+    color = "black") +
+  geom_segment(# Horizontale Klammer zwischen den Boxplots
+    data = annotation_data_neu,
+    aes(
+      x = as.numeric(AlmLabel) - 0.2,    # Position des ersten Boxplots (links)
+      xend = as.numeric(AlmLabel) + 0.2, # Position des zweiten Boxplots (rechts)
+      y = line_y_position + 2,      # Y-Position der Linie (auf der Höhe des Boxplots)
+      yend = line_y_position + 2),  # Endpunkt der Linie (auf gleicher Höhe)
+    inherit.aes = FALSE,
+    linetype = "solid",
+    linewidth = 1) +
+  geom_segment(# Vertikale Linien zu den Boxplots
+    data = annotation_data_neu,
+    aes(
+      x = as.numeric(AlmLabel) - 0.2,    # Linke Seite des ersten Boxplots
+      xend = as.numeric(AlmLabel) - 0.2, # Linke Seite der vertikalen Linie
+      y = line_y_position,          # Höhe der Linie zur Signifikanz
+      yend = line_y_position + 2),  # Position der unteren Boxplot-Kante (anpassen)
+    inherit.aes = FALSE,
+    linetype = "solid",
+    linewidth = 1) +
+  geom_segment(
+    data = annotation_data_neu,
+    aes(
+      x = as.numeric(AlmLabel) + 0.2,    # Rechte Seite des zweiten Boxplots
+      xend = as.numeric(AlmLabel) + 0.2, # Rechte Seite der vertikalen Linie
+      y = line_y_position,          # Höhe der Linie zur Signifikanz
+      yend = line_y_position + 2),  # Position der unteren Boxplot-Kante (anpassen)
+    inherit.aes = FALSE,
+    linetype = "solid",
+    linewidth = 1) +
+  geom_segment(
+    data = annotation_data_neu,
+    aes(
+      x = as.numeric(AlmLabel),         # Linke Seite des ersten Boxplots
+      xend = as.numeric(AlmLabel),      # Linke Seite der vertikalen Linie
+      y = line_y_position + 3,     # Höhe der Linie zur Signifikanz
+      yend = line_y_position + 2), # Position der unteren Boxplot-Kante (anpassen)
+    inherit.aes = FALSE,
+    linetype = "solid",
+    linewidth = 1)+
+  geom_text( # Text für die Signifikanz
+    data = annotation_data_neu,
+    aes(
+      x = as.numeric(AlmLabel),   # Position der Signifikanz (mittig zwischen den Boxplots)
+      y = line_y_position +5,# Höher als die Linie
+      label = significance),
+    inherit.aes = FALSE) +
+  scale_shape_manual(values = c("Mittelwert" = 22)) + 
+  # X-Achsenbeschriftung rotieren
+  theme(axis.text.x = element_text(size = 14, 
+                                   angle = 45, 
+                                   hjust = 1)); Appendix_S4
+
+```
+
+# Boxplots for indicator values
+
+
+```{r}
+zeigerwerte_mittel <- readxl::read_excel("data/rawdata/Zeigerwerte_mittel_hl_sl.xlsx")
+zeigerwerte_box <- zeigerwerte_mittel
+veg_Verbuschung <- data.frame(rownames(veg_layer), plot_data[, 10])
+colnames(veg_Verbuschung) = c("Plot_ID", "Verbuschung")
+zeigerwerte_box <- merge(zeigerwerte_box, veg_Verbuschung, by = "Plot_ID", all.x = TRUE)
+zeigerwerte_box$Verbuschung <- as.factor(zeigerwerte_box$Verbuschung) 
+
+zeigerwerte_box$Alm <- factor(zeigerwerte_box$Alm , levels = c("Saletalm", "Engertalm",
+                                                   "Bindalm","Königsbachalm",
+                                                   "Halsalm","Königsbachalm 2",
+                                                   "Mittereisalm","Königsbergalm"))
+
+
+zeiger_box_long <- zeigerwerte_box %>%
+  pivot_longer(
+    cols = c(Lichtzahl, Temperaturzahl, Feuchtezahl, Reaktionszahl, Naehrstoffzahl),
+    names_to = "Zeigerwert",
+    values_to = "Wert"
+  )
+```
+
+
+
+```{r}
+ggplot(zeiger_box_long, aes(x = Alm, y = Wert, fill = Verbuschung)) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +  # Boxplots nebeneinander
+  facet_wrap(~ Zeigerwert, scales = "fixed") +  # Eine Facette pro Zeigerwert
+  labs(
+    title = "Ellenberg-Zeigerwerte für verschiedene Almen und Verbuschung",
+    x = "Alm",
+    y = "Zeigerwert"
+  ) +
+  scale_fill_manual(values = c("unverbuscht" = "#4CAF50", "verbuscht" = "#FF6347")) +  # Farben für Verbuschung
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 5)) +
+  theme_minimal() +
+  theme(
+  axis.text.x = element_text(size = rel(1.2), angle = 45, hjust = 1),
+  axis.text.y = element_text(size = rel(1.2)),
+  strip.text = element_text(size = rel(1.2), face = "bold", margin = margin(b = 14)),
+  panel.spacing = unit(1, "lines")
+)
+```
+
+# save plots
+```{r}
+save(
+  Appendix_S4,
+  file="results/descriptive_analyses-final_plots.RData"
+)
+```
+

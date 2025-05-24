@@ -1,0 +1,75 @@
+---
+title: "Final plots for publication"
+author: "Bernd Panassiti"
+date: 'created: 28.11.2024, last modified: `r format(Sys.Date(), format="%d.%m.%Y")`'
+output: pdf_document
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_knit$set(root.dir='../')                     # definining working directory; or normalizePath('../')
+opts_chunk$set(fig.align='center',                # aligns all figures
+                echo=TRUE,                        # shows r-code
+                message=FALSE,                    # suppresses library outputs
+                warnings=FALSE,                   # suppresses library outputs
+                tidy=TRUE,  # prevents the source code from running off a pdf page
+                dev='pdf')
+```
+
+# Load packages
+```{r}
+#Install/load pacman
+if(!require(pacman)){install.packages("pacman");require(pacman)}
+#Install packages
+p_load(tidyverse,dplyr,ggplot2,ggpubr,rcompanion)
+```
+
+# Load working data
+```{r}
+load("data/workingdata.RData")
+load("results/descriptive_analyses-final_plots.RData")
+load("results/RDA_plots.RData")
+```
+
+# Main document
+
+
+## Q1 - Figure 3
+forest, biotop, forage
+```{r}
+ggarrange(gRDA_forest, gRDA_biotope, gRDA_forage,
+          labels = c("(A)", "(B)", "(C)"),
+          ncol = 3, nrow = 1)
+
+# save plot
+size <- dev.size("in")
+ggsave(plot = last_plot(), filename =
+         paste("figures/Fig3.png",sep=""),
+       width = size[1]+2, 
+       height = size[2], 
+       units = "in",
+       dpi = 300,
+       bg = "white")
+```
+
+
+
+# Appendix
+## S5
+```{r}
+Appendix_S4
+
+# save plot
+size <- dev.size("in")
+
+ggsave(plot = last_plot(), filename =
+         paste("figures/Appendix_S4.png",sep=""),
+       width = size[1]+2, 
+       height = size[2]+2, 
+       units = "in",
+       dpi = 300,
+       bg = "white")
+```
+

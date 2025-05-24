@@ -1,0 +1,934 @@
+---
+title: "Descriptive analyses"
+author: "Bernd Panassiti"
+date: 'created: 28.11.2024, last modified: `r format(Sys.Date(), format="%d.%m.%Y")`'
+output: pdf_document
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_knit$set(root.dir='../')                     # definining working directory; or normalizePath('../')
+opts_chunk$set(fig.align='center',                # aligns all figures
+                echo=TRUE,                        # shows r-code
+                message=FALSE,                    # suppresses library outputs
+                warnings=FALSE,                   # suppresses library outputs
+                tidy=TRUE,  # prevents the source code from running off a pdf page
+                dev='pdf')
+```
+
+
+```{r}
+#Install/load pacman
+if(!require(pacman)){install.packages("pacman");require(pacman)}
+#Install packages
+p_load("readxl","ggplot2","tidyr","dplyr",
+       "mgcv",# gam
+       "DHARMa",
+       "lme4", # glmer, glmer.nb
+       "glmmTMB",
+       "interactions",# interact_plot
+       "ggeffects", # ggpredict
+        "ggrepel" # geom_text_repel
+       )
+```
+
+
+# load working data
+```{r}
+load("data/workingdata.RData")
+```
+
+
+
+# Species richness
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2025)
+
+
+df = plot_data
+df$Verbuschung <- as.factor(df$Verbuschung)
+
+farben_almen <- length(unique(df$Alm))
+random_colors <- randomcoloR::distinctColorPalette(farben_almen)
+custom_colors <- c(
+  "Saletalm" = "darkgreen",
+  "Engertalm" = "#3357FF",
+  "Bindalm" = "darkorange",
+  "Königsbachalm" = "springgreen2",
+  "Halsalm" = "peachpuff",
+  "Königsbachalm 2" = "firebrick",
+  "Mittereisalm" = "lightskyblue",
+  "Königsbergalm" = "gold"
+)
+
+
+
+ggplot(df, aes(x = Cover_Juvenile, y = Gesamtartenzahl, color = Alm, shape = Verbuschung)) +
+  geom_point(size = 3) +  # Punkte
+  scale_color_manual(values = custom_colors) +  # Farben für Almen
+  scale_shape_manual(values = c(19, 15), 
+                     labels = c("Nicht verbuscht", "Verbuscht"),  # Beschriftung für Verbuschung
+                     name = "Verbuschung") +
+  labs(x = "Verbuschungsgrad (%)",
+       y = "Artenzahl",
+       color = "Alm",  # Titel für die Farben-Legende
+       shape = "Verbuschung",  # Titel für die Shape-Legende
+       title = "Verbuschungsgrad und Artenzahl") +
+  geom_smooth(aes(group = 1), method = "loess", se = FALSE) +  # Eine Glättungslinie, group = 1 macht, dass nur eine Glättungslinie für alle Plots berechnet wird
+  theme_minimal()
+#ggsave("figures/Verbuschung_Artenzahl.png", plot = last_plot(), dpi = 600, width = 10, height = 8, units = "in", bg = "white")
+
+
+# Berechne die Residuen
+# Berechne die vorhergesagten Werte mit predict()
+predicted_values <- predict(loess(Gesamtartenzahl ~ Cover_Juvenile, data = df))
+
+# Berechne die Residuen
+residuals <- df$Gesamtartenzahl - predicted_values
+
+# Residuen plotten
+ggplot(df, aes(x = Cover_Juvenile, y = residuals, color = Alm, shape = Verbuschung)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = custom_colors) +  # Farben für Almen
+  scale_shape_manual(values = c(19, 15), 
+                     labels = c("Nicht verbuscht", "Verbuscht"),
+                     name = "Verbuschung") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +  # Null-Linie
+  labs(x = "Verbuschungsgrad (%)",
+       y = "Residuen",
+       color = "Alm",  
+       shape = "Verbuschung",  
+       title = "Residuen der LOESS-Glättung") +
+  theme_minimal()
+```
+
+
+
+
+
+# Verbuschung und Höhe - Regression
+```{r Verbuschung und Höhe}
+rm(.Random.seed, envir=globalenv())
+set.seed(2025)
+
+df = plot_data
+df <- as.data.frame(df)
+df$Alm = as.factor(df$Alm)
+df$Alm_ID = as.factor(df$Alm_ID)
+df$Transekt = as.factor(df$Transekt)
+df <-  df[order(df$Plot_ID), ]
+rownames(df) <- NULL
+# sorted according height
+df$Alm <- factor(df$Alm , levels = c("Saletalm", "Engertalm",
+                                                   "Bindalm","Königsbachalm",
+                                                   "Halsalm","Königsbachalm 2",
+                                                   "Mittereisalm","Königsbergalm"))
+df$Elevation <- round(df$Elevation, 1)
+df$Verbuschung <- as.factor(df$Verbuschung)
+
+df$Verbuschung <- as.factor(df$Verbuschung)
+df$Verbuschung <- ifelse(df$Verbuschung == 0, "unverbuscht", "verbuscht")
+df_verbuscht <- df %>%
+  filter(Verbuschung == "verbuscht")
+mean(df_verbuscht$Cover_Juvenile)
+
+model <- lm(Cover_Juvenile ~ Elevation, data = df_verbuscht)
+summary(model)
+Residuen <- resid(model)
+shapiro.test(Residuen) # --> p < 0.05 --> Residuen nicht normalverteilt! --> GLM
+
+df_verbuscht$Elevation_scaled <- scale(df_verbuscht$Elevation)
+df_verbuscht$Cover_Juvenile_scaled <- scale(df_verbuscht$Cover_Juvenile)
+hist(df_verbuscht$Cover_Juvenile) # --> Eindeutlig rechtsschief
+
+#glm_gamma <- glm(Cover_Juvenile ~ Elevation_scaled, family = Gamma, data =df_verbuscht)
+#summary(glm_gamma)
+#simulationOutput <- simulateResiduals(fittedModel = glm_gamma, plot = F)
+#residuals(simulationOutput)
+#plot(simulationOutput) # --> Macht Probleme --> Höhe mit nich-linearer Beziehung ins Modell bringen
+
+#glm_gamma <- glm(Cover_Juvenile ~ Elevation + I(Elevation^2), family = Gamma, data =df_verbuscht)
+#summary(glm_gamma)
+#simulationOutput <- simulateResiduals(fittedModel = glm_gamma, plot = F)
+#residuals(simulationOutput)
+#plot(simulationOutput) # --> Modell in Ordnung, Gamma-Verteilung aber nicht gut für begrenzte Werte (bei Cover_Juvenile zwischen 0 und 1) --> beta-Verteilung
+
+df_verbuscht$Cover_Juvenile <- df_verbuscht$Cover_Juvenile / 100
+beta_model <- betareg::betareg(Cover_Juvenile ~ Elevation + I(Elevation^2), data = df_verbuscht)
+summary(beta_model)
+
+
+# Quantile Residuals extrahieren
+resid_quantile <- residuals(beta_model, type = "quantile")
+# QQ-Plot zur Normalverteilung prüfen
+qqnorm(resid_quantile)
+qqline(resid_quantile, col = "red")
+hist(residuals(beta_model, type = "quantile"), main = "Histogramm der Quantile-Residuals", breaks = 20) # Nicht perfekt, aber in Ordnung
+
+
+# Berechne die Vorhersagen für das Modell
+df_verbuscht$Predictions <- predict(beta_model, newdata = df_verbuscht)
+
+# p-Wert für Plot
+p_value <- summary(beta_model)$coefficients$mean[2, "Pr(>|z|)"]
+summary(beta_model)
+
+# Plot
+ggplot(df_verbuscht, aes(x = Elevation, y = Cover_Juvenile)) +
+  geom_point(color = "red", size = 2) +  # Scatterplot der tatsächlichen Daten
+  geom_line(aes(y = Predictions), color = "darkgreen", linewidth = 1) +  # Modellvorhersagen als Linie
+  labs(title = "Verbuschungsgrad und Höhe", 
+       x = "Höhe (Elevation)", 
+       y = "Verbuschungsgrad (Cover_Juvenile)") +
+  annotate("text", x = max(df_verbuscht$Elevation) * 0.83, 
+           y = max(df_verbuscht$Cover_Juvenile) * 0.55, 
+           label = paste("p = ", round(p_value, 4)), 
+           color = "black", size = 6, hjust = 0) +  # P-Wert als Text
+  theme_minimal()
+
+#ggsave("figures/Verbuschung_Hoehe_GLM.png", plot = last_plot(), dpi = 600, width = 10, height = 8, units = "in", bg = "white")
+
+# GAM
+
+gam_model <- mgcv::gam(Cover_Juvenile ~ s(Elevation), family = betar(), data = df_verbuscht)
+summary(gam_model)
+simulationOutput <- simulateResiduals(fittedModel = gam_model, plot = F)
+residuals(simulationOutput)
+plot(simulationOutput)
+
+df_verbuscht$Predictions_gam <- predict(gam_model, newdata = df_verbuscht, type = "response")
+custom_colors <- c(
+  "Saletalm" = "darkgreen",
+  "Engertalm" = "#3357FF",
+  "Bindalm" = "darkorange",
+  "Königsbachalm" = "springgreen2",
+  "Halsalm" = "peachpuff",
+  "Königsbachalm 2" = "firebrick",
+  "Mittereisalm" = "lightskyblue",
+  "Königsbergalm" = "gold"
+)
+
+
+ggplot(df_verbuscht, aes(x = Elevation, y = Cover_Juvenile, color = Alm)) +
+  geom_point(size = 2) +  # Scatterplot der tatsächlichen Daten
+  geom_line(aes(y = Predictions_gam), color = "darkgreen", linewidth = 1) +  # Vorhersagekurve des GAM-Modells
+  labs(title = "Verbuschungsgrad der verbuschten Vegetationsaufnahmen und Höhe (GAM)", 
+       x = "Höhe (Elevation)", 
+       y = "Verbuschungsgrad (Cover_Juvenile)") +
+  annotate("text", x = max(df_verbuscht$Elevation) * 0.85, 
+           y = max(df_verbuscht$Cover_Juvenile) * 0.55, 
+           label = paste("p = ", round(0.559, 4)), 
+           color = "black", size = 6, hjust = 0) +  # p-Wert als Text
+  scale_color_manual(values = custom_colors) +  # Manuelle Farbspezifikation für "Alm"
+  theme_minimal()
+
+#ggsave("figures/Verbuschung_Hoehe_GAM_neu.png", plot = last_plot(), dpi = 600, width = 10, height = 8, units = "in", bg = "white")
+
+
+```
+
+# Artenzahl und Höhe - Lineare Regression
+```{r Artenzahl und Höhe}
+rm(.Random.seed, envir=globalenv())
+set.seed(2025)
+
+df = plot_data
+df <- as.data.frame(df)
+df$Alm = as.factor(df$Alm)
+df$Alm_ID = as.factor(df$Alm_ID)
+df$Transekt = as.factor(df$Transekt)
+df <-  df[order(df$Plot_ID), ]
+rownames(df) <- NULL
+# sorted according height
+df$Alm <- factor(df$Alm , levels = c("Saletalm", "Engertalm",
+                                                   "Bindalm","Königsbachalm",
+                                                   "Halsalm","Königsbachalm 2",
+                                                   "Mittereisalm","Königsbergalm"))
+df$Elevation <- round(df$Elevation, 1)
+df$Verbuschung <- as.factor(df$Verbuschung)
+
+df$Verbuschung <- ifelse(df$Verbuschung == 0, "unverbuscht", "verbuscht")
+df$Verbuschung <- as.factor(df$Verbuschung)
+model <- lm(Gesamtartenzahl ~ Elevation, data = df)
+shapiro.test(resid(model)) # --> Residuen normalverteilt
+car::ncvTest(model) # --> Homoskedastizität gegeben
+# Zusammenfassung des Modells
+model_summary <- summary(model)
+
+# Extrahiere den p-Wert des Modells
+p_value <- model_summary$coefficients[2, 4] 
+
+ggplot(df, aes(x = Elevation, y = Gesamtartenzahl, color = Verbuschung)) +
+  geom_point(size = 3) + 
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
+  labs(title = "Artenzahl in Abhängigkeit von der Höhe", x = "Höhe (m)", y = "Artenzahl") +
+  theme_minimal() + 
+  annotate("text", x = 1500, y = 38, label = paste("p =", round(p_value, 5)), color = "black", size = 5)
+
+#ggsave("figures/Artenzahl_Hoehe.png", plot = last_plot(), dpi = 600, width = 10, height = 8, units = "in", bg = "white")
+```
+
+
+
+# Versuch GLM und GLMM mit Verbuschung als 1/0
+```{r GLM und GLMM Verbuschung kategorial}
+rm(.Random.seed, envir=globalenv())
+set.seed(2025)
+
+df = plot_data
+df$Verbuschung <- as.factor(df$Verbuschung)
+df_scaled <- df
+df_scaled$Elevation_scaled <- scale(df$Elevation)
+df_scaled$Cover_Juvenile_scaled <- scale(df_scaled$Cover_Juvenile)
+df_scaled$Exposition_scaled <- scale(df_scaled$Exposition)
+df_scaled$Hangneigung_scaled <- scale(df_scaled$Hangneigung)
+
+df_scaled$Elevation_scaled <- as.numeric(scale(df_scaled$Elevation))
+df_scaled$Cover_Juvenile_scaled <- as.numeric(scale(df_scaled$Cover_Juvenile))
+df_scaled$Hangneigung_scaled <-as.numeric(scale(df_scaled$Hangneigung))
+
+# Poisson GLM
+glm_poisson <- glm(Gesamtartenzahl ~ Elevation_scaled + Verbuschung, 
+                   family = poisson(link = "log"), 
+                   data = df_scaled)
+
+simulationOutput <- simulateResiduals(fittedModel = glm_poisson, plot = F)
+residuals(simulationOutput)
+plot(simulationOutput)
+testDispersion(simulationOutput) # --> dispersion signifikant und > 1 (1,4). Deutet auf Overdispersion hin 
+plotResiduals(simulationOutput, form = df_scaled$Verbuschung)
+
+summary(glm_poisson) # Signifikant negativer Einfluss von Verbuschung und Höhe auf Artenzahl, aber Overdispersion, da Residual deviance > Degrees of freedom
+res <- simulateResiduals(glm_poisson, plot = T)
+
+
+glm_quasipoisson <- glm(Gesamtartenzahl ~ Elevation_scaled + Verbuschung, 
+                   family = quasipoisson(link = "log"), 
+                   data = df_scaled)
+
+summary(glm_quasipoisson) # --> signifikant negativer Einfluss von Höhe auf Artenzahl, knapp kein signifikanter negativer Einfluss der Verbuschung
+
+
+# Negatives Binomialmodell
+glm_nb <- MASS::glm.nb(Gesamtartenzahl ~ Elevation_scaled + Verbuschung, data = df_scaled)
+summary(glm_nb) # --> Elevation_scaled mit p-Wert von 0,00893 signifikant! Umgerechnet (Elevation ) bedeutet das, pro 100 m Höhe ca. einen Artenverlust von 1,65 %. 
+                # --> Verbuschung mit p-Wert von 0.055 gerade so nicht signifikant. Hinweise, dass verbuschte Flächen ca. 6 % (1- exp(−0.06222)≈0.94) artenärmer                           sind.
+res <- simulateResiduals(glm_nb, plot = T) # --> Modell gut!
+simulationOutput <- simulateResiduals(fittedModel = glm_nb, plot = F)
+testDispersion(simulationOutput) # --> Dispersion bei 1, p-Wert hoch
+
+# Vergleich der Modelle
+AIC(glm_poisson, glm_nb) # --> AIC vom negativen Binomialmodell ist niedriger (bei 988,39)
+
+plot(residuals(glm_poisson, type = "pearson"), main = "Poisson Residuen")
+plot(residuals(glm_nb, type = "pearson"), main = "Negative-Binomial Residuen")
+
+# Optimalkurve für skalierte Höhe
+
+# Sequenz der skalierten Höhenwerte erstellen
+elevation_seq <- seq(min(df_scaled$Elevation_scaled), 
+                     max(df_scaled$Elevation_scaled), 
+                     length.out = 100)
+
+# Levels der kategorialen Variable "Verbuschung" abrufen
+verbuschung_levels <- unique(df_scaled$Verbuschung)
+
+# Datenframe für Vorhersagen erstellen
+prediction_data <- expand.grid(
+  Elevation_scaled = elevation_seq,
+  Verbuschung = verbuschung_levels
+)
+
+# Vorhersagen aus dem Modell hinzufügen
+prediction_data$Predicted <- predict(glm_nb, 
+                                     newdata = prediction_data, 
+                                     type = "response")
+
+## GLMM
+
+# Mit skalierter Höhe 
+glmm_poisson <- lme4::glmer(Gesamtartenzahl ~ Elevation_scaled + Verbuschung + (1 | Alm), 
+                      family = poisson(link = "log"), 
+                      data = df_scaled)
+# Aber Überdispersion weil Residual Deviance (935.8) > als df. resid (140)
+summary(glmm_poisson) # --> Verbuschung hat einen signifikanten negativen Einfluss auf die Artenzahl (p = 0.023), Elevation_scaled hat keinen signifikanten Einfluss                             auf die Artenzahl (p = 0.359)
+res <- simulateResiduals(glmm_poisson, plot = T)
+simulationOutput <- simulateResiduals(fittedModel = glmm_poisson, plot = F)
+testDispersion(simulationOutput) # --> Dispersion bei 1, aber nicht signifikant --> Keine Verbesserung zum GLM.nb
+
+
+plot(glmm_poisson, residuals =T)
+qqnorm(resid(glmm_poisson))
+qqline(resid(glmm_poisson))
+
+
+# GLMM mit neg. Binomialverteilung
+
+negbinom_glmm <- glmmTMB::glmmTMB(Gesamtartenzahl ~ Elevation_scaled + Verbuschung + (1 | Alm), 
+                       family = nbinom2(link = "log"), 
+                       data = df_scaled) 
+# Gibt Warnmeldung!!!
+
+# Zusammenfassung des Modells
+summary(negbinom_glmm) # --> Sehr hoher Dispersions-Wert (7.28 x e^9)!
+
+residuals <- residuals(negbinom_glmm, type = "response")
+qqnorm(residuals)
+qqline(residuals, col = "red")
+hist(residuals, breaks = 20, main = "Histogramm der Residuen", xlab = "Residuen")
+
+
+# Quasi-Poisson
+glmmPQL <- MASS::glmmPQL(Gesamtartenzahl ~ Elevation_scaled + Verbuschung, random = ~ 1 | Alm,
+               family = quasipoisson(), data = df_scaled)
+
+summary(glmmPQL) 
+
+# Poisson
+glmmPQL <- MASS::glmmPQL(Gesamtartenzahl ~ Elevation_scaled + Verbuschung, random = ~ 1 | Alm,
+               family = poisson(), data = df_scaled)
+
+summary(glmmPQL) # --> Poisson und Quasi-Poisson haben sehr ähnliche Ergebnisse mit glmmPQL
+
+
+```
+
+# Versuch GLM und GLMM mit Verbuschung in Prozent
+
+```{r GLM und GLMM Verbuschung kontinuierlich}
+rm(.Random.seed, envir=globalenv())
+set.seed(2025)
+
+df = plot_data
+
+# Elevation_squared, um nichtlineare Beziehungen zwischen Höhe und Artenzahl abzubilden
+df_scaled$Elevation_sq <- df_scaled$Elevation_scaled^2
+
+# Poisson GLM
+glm_poisson_continuous <- glm(Gesamtartenzahl ~ Elevation_scaled + I(Elevation_scaled^2) + Cover_Juvenile_scaled, 
+                              family = poisson(link = "log"), 
+                              data = df_scaled)
+var(df_scaled$Gesamtartenzahl)
+summary(glm_poisson_continuous) # Residual deviance (206,47) > Degrees of freedom (141) --> Overdispersion --> Negatives Binomialmodell oder Quasi-Poisson
+res <- simulateResiduals(glm_poisson_continuous, plot = T) # Macht Probleme
+
+
+# Negatives Binimialmodell
+
+glm_nb_continuous <- MASS::glm.nb(Gesamtartenzahl ~ Elevation_scaled * Hangneigung_scaled * Cover_Juvenile_scaled, 
+                            data = df_scaled)
+
+glm_nb_continuous <- MASS::glm.nb(Gesamtartenzahl ~ Elevation_scaled + Hangneigung_scaled + Cover_Juvenile_scaled, 
+                            data = df_scaled)
+cor(df_scaled$Hangneigung_scaled, df_scaled$Elevation_scaled)
+cor(df_scaled$Cover_Juvenile_scaled, df_scaled$Elevation_scaled)
+cor(df_scaled$Hangneigung_scaled, df_scaled$Cover_Juvenile_scaled)
+
+summary(glm_nb_continuous) # --> Verbuschungsgrad hat keinen signifikanten negativen Einfluss auf die Artenzahl (p = 0.0629),                                                                         Elevation_scaled hat einen signifikanten Einfluss auf die Artenzahl (p = 0.011)
+res <- simulateResiduals(glm_nb_continuous, plot = T) # --> Modell gut, keine Muster in Residuen erkennbar
+
+par(mfrow = c(1,2))
+
+interactions::interact_plot(model=glm_nb_continuous, pred = Elevation_scaled, modx = Hangneigung_scaled)
+
+plot(ggeffects::ggpredict(glm_nb_continuous, terms = c("Elevation_scaled", "Hangneigung_scaled [-1, 0, 1]")))
+# Pseudo-R² berechnen (McFadden's R²)
+null_model <- MASS::glm.nb(Gesamtartenzahl ~ 1, data = df_scaled)
+pseudo_r2 <- 1 - (logLik(glm_nb_continuous) / logLik(null_model))
+pseudo_r2
+
+
+# Erstelle ein Gitter für Elevation und Hangneigung (fixer Wert für Cover_Juvenile_scaled)
+new_data <- expand.grid(
+  Elevation_scaled = seq(min(df_scaled$Elevation_scaled), 
+                         max(df_scaled$Elevation_scaled), length.out = 100),
+  Hangneigung_scaled = seq(min(df_scaled$Hangneigung_scaled), 
+                           max(df_scaled$Hangneigung_scaled), length.out = 100),
+  Cover_Juvenile_scaled = 0  # Fix auf Mittelwert oder einen spezifischen Wert setzen
+)
+
+# Vorhersagen mit dem Modell (Typ = "response" gibt vorhergesagte Artenzahlen in Originalskala)
+new_data$Predicted_Species_Richness <- predict(glm_nb_continuous, 
+                                               newdata = new_data, 
+                                               type = "response")
+
+# Contour-Plot erstellen
+df_scaled$Verbuschung <- ifelse(df_scaled$Verbuschung == 0, "unverbuscht", "verbuscht") 
+
+ggplot() +
+  # Contour-Plot basierend auf new_data
+  geom_contour_filled(data = new_data, aes(x = Hangneigung_scaled, y = Elevation_scaled, 
+                                           z = Predicted_Species_Richness)) +
+  # Punkte aus df_scaled hinzufügen
+  geom_point(data = df_scaled, aes(x = Hangneigung_scaled, y = Elevation_scaled, shape = Verbuschung), 
+             color = "darkred", size = 2) +
+  # Beschriftung der Punkte mit Plot_ID
+   ggrepel::geom_text_repel(data = df_scaled, aes(x = Hangneigung_scaled, y = Elevation_scaled, 
+                                         label = Plot_ID), 
+            color = "black", size = 3) +  # vjust verschiebt den Text nach oben
+  # Achsenbeschriftungen & Theme
+  labs(title = "Contour-Plot: Vorhergesagte Artenzahl",
+       x = "Hangneigung (skaliert)",
+       y = "Höhe (skaliert)",
+       fill = "Artenzahl") +
+  theme_minimal()
+#ggsave("figures/GLM_Contour_Plot.png", plot = last_plot(), dpi = 600, width = 10, height = 8, units = "in", bg = "white")
+
+
+# Optimalkurve mit vorhergesagten Artenzahlen und skalierter Höhe
+elevation_seq <- seq(min(df_scaled$Elevation_scaled), 
+                     max(df_scaled$Elevation_scaled), 
+                     length.out = 100)
+
+# Mittelwert von Cover_Juvenile_scaled berechnen
+mean_cover <- mean(df_scaled$Cover_Juvenile_scaled, na.rm = TRUE)
+mean_hangneigung <- mean(df_scaled$Hangneigung_scaled, na.rm = TRUE)
+# Datenframe für Vorhersagen erstellen
+prediction_data <- data.frame(
+  Elevation_scaled = elevation_seq,
+  Cover_Juvenile_scaled = mean_cover,
+  Hangneigung_scaled = mean_hangneigung
+)
+
+# Vorhersagen aus dem Modell
+prediction_data$Predicted <- predict(glm_nb_continuous, 
+                                     newdata = prediction_data, 
+                                     type = "response")
+
+
+# Grafik erstellen
+ggplot(prediction_data, aes(x = Elevation_scaled, y = Predicted)) +
+  geom_line(color = "blue", size = 1.2) +
+  labs(
+    x = "Skalierte Höhe",
+    y = "Vorhergesagte Gesamtartenzahl",
+    title = "Optimalkurve für die Höhe"
+  ) +
+  theme_minimal()
+#ggsave("figures/Optimalkurve_Hoehe_skaliert.png", plot = last_plot(), dpi = 600, width = 10, height = 8, units = "in", bg = "white")
+
+# Optimalkurve mit vorhergesagten Artenzahlen und Höhe
+
+mean_elevation <- mean(df_scaled$Elevation, na.rm = TRUE)
+sd_elevation <- sd(df_scaled$Elevation, na.rm = TRUE)
+
+# Erstellen einer Sequenz für die ursprüngliche (nicht skalierte) Höhe
+elevation_seq_original <- (elevation_seq * sd_elevation) + mean_elevation
+
+# Den zurückskalierten Höhenwert zum Dataframe hinzufügen
+prediction_data$Elevation_original <- elevation_seq_original
+
+###
+# Pseudo-R² berechnen (McFadden)
+null_model <- MASS::glm.nb(Gesamtartenzahl ~ 1, data = df_scaled)
+pseudo_r2 <- 1 - (logLik(glm_nb_continuous) / logLik(null_model))
+
+# P-Wert für Elevation_scaled aus der Modellzusammenfassung
+summary_model <- summary(glm_nb_continuous)
+p_value_elevation <- summary_model$coefficients["Elevation_scaled", "Pr(>|z|)"]
+
+# Ergebnisse anzeigen
+cat("Pseudo-R² (McFadden):", round(pseudo_r2, 3), "\n")
+cat("p-Wert (Elevation_scaled):", signif(p_value_elevation, 3), "\n")
+
+colnames(prediction_data)[colnames(prediction_data) == "Predicted"] <- "Gesamtartenzahl"
+colnames(prediction_data)[colnames(prediction_data) == "Elevation_original"] <- "Elevation"
+
+ggplot(df_scaled, aes(x = Hangneigung, y = Gesamtartenzahl)) +
+  geom_point() +
+  geom_line(data = prediction_data, aes(x = Elevation, y = Gesamtartenzahl), color = "blue", size = 1.2) +
+  labs(
+    x = "Höhe in m (nicht skaliert)",
+    y = "Vorhergesagte Gesamtartenzahl",
+    title = "Vorhersagegerade für die Höhe"
+  ) +
+  theme_minimal() +
+  # Text für Pseudo-R² und p-Wert hinzufügen
+  annotate(
+    "text",
+    x = 910,  # Position anpassen
+    y = 39.5, # Position anpassen
+    label = paste0(
+      "Pseudo-R² = ", round(pseudo_r2, 3),
+      "\n", "p-Wert (Höhe) = ", signif(p_value_elevation, 3)
+    ),
+    hjust = 0, vjust = 1, size = 5, color = "black"
+  ) + 
+  # Textgrößen anpassen
+  theme(
+    plot.title = element_text(size = 25, face = "bold", hjust = 0.5),  # Titel größer und zentriert
+    axis.title.x = element_text(size = 20),  # x-Achsenbeschriftung
+    axis.title.y = element_text(size = 20),   # y-Achsenbeschriftung
+    axis.text.x = element_text(size = 15),   # x-Achsenwerte größer
+    axis.text.y = element_text(size = 15) 
+  )
+#ggsave("figures/Vorhersagegerade_Hoehe_original_groß.png", plot = last_plot(), dpi = 600, width = 10, height = 8, units = "in", bg = "white")
+
+glm_nb_continuous <- MASS::glm.nb(Gesamtartenzahl ~ Elevation_scaled + Cover_Juvenile_scaled, 
+                            data = df_scaled)
+df_scaled$Predictions_elevation <- predict(glm_nb_continuous, newdata = df_scaled, type = "response")
+summary_model <- summary(glm_nb_continuous)
+
+p_value_elevation <- summary_model$coefficients["Elevation_scaled", "Pr(>|z|)"]
+# Pseudo-R² berechnen (McFadden)
+null_model <- MASS::glm.nb(Gesamtartenzahl ~ 1, data = df_scaled)
+pseudo_r2 <- 1 - (logLik(glm_nb_continuous) / logLik(null_model))
+
+ggplot(df_scaled, aes(x = Elevation, y = Gesamtartenzahl)) +
+  geom_point(color = "red", size = 2) +  # Scatterplot der tatsächlichen Daten
+  geom_line(aes(y = Predictions_elevation), color = "darkgreen", linewidth = 1) +  # Vorhersagekurve des GAM-Modells
+  labs(title = "Verbuschungsgrad und Höhe (GLM-Modell)", 
+       x = "Höhe (Elevation)", 
+       y = "Gesamtartenzahl") +
+  annotate("text", x = max(df_scaled$Elevation) * 0.85, 
+           y = max(df_scaled$Gesamtartenzahl) * 0.65, 
+           label = paste("Pseudo-R² (McFadden) = ", round(pseudo_r2, 3), 
+                         "\n", "p = ", round(p_value_elevation, 4)), 
+           color = "black", size = 6, hjust = 0) +  # p-Wert als Text
+  theme_minimal()
+
+#ggsave("figures/Optimumskurve_Hoehe_original_Hoehe.png", plot = last_plot(), dpi = 600, width = 10, height = 8, units = "in", bg = "white")
+
+
+# Optimalkurve mit vorhergesagten Artenzahlen und skaliertem Verbuschungsgrad
+cover_seq <- seq(min(df_scaled$Cover_Juvenile_scaled), 
+                     max(df_scaled$Cover_Juvenile_scaled), 
+                     length.out = 100)
+
+# Mittelwert von Elevation_scaled und Elevation_sq berechnen
+mean_cover <- mean(df_scaled$Elevation_scaled, na.rm = TRUE)
+mean_cover_sq <- mean(df_scaled$Elevation_sq, na.rm = TRUE)
+
+# Datenframe für Vorhersagen erstellen
+prediction_data <- data.frame(
+  Cover_Juvenile_scaled = cover_seq,
+  Elevation_scaled = mean_cover,
+  Elevation_sq = mean_cover_sq
+)
+
+# Vorhersagen aus dem Modell
+prediction_data$Predicted <- predict(glm_nb_continuous, 
+                                     newdata = prediction_data, 
+                                     type = "response")
+
+# Grafik erstellen
+ggplot(prediction_data, aes(x = Cover_Juvenile_scaled, y = Predicted)) +
+  geom_line(color = "blue", size = 1.2) +
+  labs(
+    x = "Skalierter Verbuschungsgrad",
+    y = "Vorhergesagte Gesamtartenzahl",
+    title = "Optimalkurve für den Verbuschungsgrad"
+  ) +
+  theme_minimal()
+#ggsave("figures/Optimalkurve_Verbuschung_skaliert.png", plot = last_plot(), dpi = 600, width = 10, height = 8, units = "in", bg = "white")
+
+
+
+# Optimalkurve mit vorhergesagten Artenzahlen und Verbuschungsgrad
+Cover_seq <- seq(min(df_scaled$Cover_Juvenile_scaled), 
+                     max(df_scaled$Cover_Juvenile_scaled), 
+                     length.out = 100)
+
+mean_Cover <- mean(df_scaled$Cover_Juvenile, na.rm = TRUE)
+sd_Cover <- sd(df_scaled$Cover_Juvenile, na.rm = TRUE)
+
+# Erstellen einer Sequenz für die ursprüngliche (nicht skalierte) Höhe
+Cover_seq_original <- (Cover_seq * sd_Cover) + mean_Cover
+
+# Den zurückskalierten Höhenwert zum Dataframe hinzufügen
+prediction_data$Cover_original <- Cover_seq_original
+
+###
+# Pseudo-R² berechnen (McFadden)
+null_model <- MASS::glm.nb(Gesamtartenzahl ~ 1, data = df_scaled)
+pseudo_r2 <- 1 - (logLik(glm_nb_continuous) / logLik(null_model))
+
+# P-Wert für Cover_Juvenile_scaled aus der Modellzusammenfassung
+summary_model <- summary(glm_nb_continuous)
+p_value_cover <- summary_model$coefficients["Cover_Juvenile_scaled", "Pr(>|z|)"]
+
+# Ergebnisse anzeigen
+cat("Pseudo-R² (McFadden):", round(pseudo_r2, 3), "\n")
+cat("p-Wert (Cover_Juvenile_scaled):", signif(p_value_cover, 3), "\n")
+
+# Sequenz für die originalen Werte von Cover_Juvenile
+cover_seq <- seq(min(df_scaled$Cover_Juvenile_scaled), 
+                 max(df_scaled$Cover_Juvenile_scaled), 
+                 length.out = 100)
+
+# Mittelwert der Elevation_scaled berechnen
+mean_elevation <- mean(df_scaled$Elevation_scaled, na.rm = TRUE)
+
+# Datenframe für Vorhersagen erstellen
+prediction_data_cover <- data.frame(
+  Cover_Juvenile_scaled = cover_seq,
+  Elevation_scaled = mean_elevation
+)
+
+# Vorhersagen aus dem Modell
+prediction_data_cover$Predicted <- predict(glm_nb_continuous, 
+                                           newdata = prediction_data_cover, 
+                                           type = "response")
+
+# Zurückskalieren von Cover_Juvenile
+mean_cover <- mean(df_scaled$Cover_Juvenile, na.rm = TRUE)
+sd_cover <- sd(df_scaled$Cover_Juvenile, na.rm = TRUE)
+prediction_data_cover$Cover_Juvenile_original <- (cover_seq * sd_cover) + mean_cover
+
+ggplot(prediction_data_cover, aes(x = Cover_Juvenile_original, y = Predicted)) +
+  geom_line(color = "blue", size = 1.2) +
+  labs(
+    x = "Verbuschungsgrad in % (nicht skaliert)",
+    y = "Vorhergesagte Gesamtartenzahl",
+    title = "Vorhersagegerade für den Verbuschungsgrad"
+  ) +
+  theme_minimal() +
+  # Text für Pseudo-R² und p-Wert hinzufügen
+  annotate(
+    "text",
+    x = 21,  # Anpassen der Position
+    y = 37.8,               # Anpassen der Position
+    label = paste0(
+      "Pseudo-R² = ", round(pseudo_r2, 3),
+      "\n", "p-Wert (Cover_Juvenile) = ", signif(p_value_cover, 3)
+    ),
+    hjust = 0, vjust = 1, size = 5, color = "black"
+  ) +
+ theme(
+    plot.title = element_text(size = 25, face = "bold", hjust = 0.5),  # Titel größer und zentriert
+    axis.title.x = element_text(size = 20),  # x-Achsenbeschriftung
+    axis.title.y = element_text(size = 20),   # y-Achsenbeschriftung
+    axis.text.x = element_text(size = 15),   # x-Achsenwerte größer
+    axis.text.y = element_text(size = 15) 
+  )
+#ggsave("figures/Optimumskurve_Verbuschung_original_groß.png", plot = last_plot(), dpi = 600, width = 10, height = 8, units = "in", bg = "white")
+
+
+AIC(glm_poisson_continuous, glm_nb_continuous)
+
+# --> Negatives Binomialmodell in beiden Fällen besser, Cover_Juvenile und Verbuschung haben beide Male einen schwachen negativen Effekt auf die Artenzahl, sind aber knapp nicht signifikant. Die Höhe hat einen signifikant negativen Effekt auf die Artenzahl.
+
+
+# GLMM mit Cover_Juvenile
+glmm_poisson_continous <- lme4::glmer(Gesamtartenzahl ~ Elevation_scaled + Cover_Juvenile_scaled + Hangneigung_scaled + (1 | Alm), 
+                      family = poisson(link = "log"), 
+                      data = df_scaled)
+res <- simulateResiduals(glmm_poisson_continous, plot = T)
+testDispersion(glmm_poisson_continous)
+summary(glmm_poisson_continous)
+
+glmm_poisson_continous <- lme4::glmer(Gesamtartenzahl ~ Elevation_scaled * Cover_Juvenile_scaled * Hangneigung_scaled + (1 | Alm), 
+                      family = poisson(link = "log"), 
+                      data = df_scaled)
+res <- simulateResiduals(glmm_poisson_continous, plot = T)
+testDispersion(glmm_poisson_continous)
+summary(glmm_poisson_continous)
+
+glmm_nb_continous <- lme4::glmer.nb(Gesamtartenzahl ~ Elevation_scaled + + Hangneigung_scaled + Cover_Juvenile_scaled + (1 | Alm), data = df_scaled) # --> Klappt nicht
+
+summary(glmm_nb_continous)
+
+
+
+## glmmPQL
+
+# Poisson
+glmmPQL <- MASS::glmmPQL(Gesamtartenzahl ~ Elevation_scaled + Cover_Juvenile_scaled, random = ~ 1 | Alm,
+               family = poisson(), data = df_scaled)
+
+summary(glmmPQL) # --> Verbuschungsgrad signifikant negativer Einfluss auf Artenzahl, Höhe nicht signifikant!
+
+# Quasi-Poisson
+glmmPQL <- MASS::glmmPQL(Gesamtartenzahl ~ Elevation_scaled + Cover_Juvenile_scaled, random = ~ 1 | Alm,
+               family = quasipoisson(), data = df_scaled)
+summary(glmmPQL) # --> Sehr ähnliche Ergebnisse zu Poisson
+
+shapiro.test(df_scaled$Gesamtartenzahl)
+qqnorm(df_scaled$Gesamtartenzahl)
+qqline(df_scaled$Gesamtartenzahl, col = "red")
+
+
+```
+
+# GLMM neuer Versuch
+```{r GLMM neuer Versuch}
+rm(.Random.seed, envir=globalenv())
+set.seed(2025)
+
+df = plot_data
+
+df$Verbuschung <- as.factor(df$Verbuschung)
+df_scaled <- df
+df_scaled$Elevation_scaled <- scale(df$Elevation)
+df_scaled$Cover_Juvenile_scaled <- scale(df_scaled$Cover_Juvenile)
+df_scaled$Exposition_scaled <- scale(df_scaled$Exposition)
+df_scaled$Hangneigung_scaled <- scale(df_scaled$Hangneigung)
+
+df_scaled$Elevation_scaled <- as.numeric(scale(df_scaled$Elevation))
+df_scaled$Cover_Juvenile_scaled <- as.numeric(scale(df_scaled$Cover_Juvenile))
+df_scaled$Hangneigung_scaled <-as.numeric(scale(df_scaled$Hangneigung))
+
+
+
+
+glmm_nb_continous <- lme4::glmer.nb(Gesamtartenzahl ~ Elevation_scaled * Hangneigung_scaled * Cover_Juvenile_scaled + (1 | Alm), data = df_scaled)
+
+
+glmmPQL <- MASS::glmmPQL(Gesamtartenzahl ~ Elevation_scaled + Hangneigung_scaled + Cover_Juvenile_scaled, random = ~ 1 | Alm,
+               family = poisson(), data = df_scaled)
+glmmPQL <- MASS::glmmPQL(Gesamtartenzahl ~ Elevation_scaled * Hangneigung_scaled * Cover_Juvenile_scaled, random = ~ 1 | Alm,
+               family = poisson(), data = df_scaled)
+
+summary(glmmPQL)
+
+
+glmm_nb_continous <- glmmTMB::glmmTMB(Gesamtartenzahl ~ Elevation_scaled + Hangneigung_scaled + Cover_Juvenile_scaled + (1 | Alm), 
+                             data = df_scaled,
+                             family = nbinom2) # --> Modell nehmen!
+
+summary(glmm_nb_continous)
+res <- simulateResiduals(glmm_nb_continous, plot = T)
+testDispersion(glmm_nb_continous)
+
+AIC(glm_nb_continuous, glmm_nb_continous)
+
+
+# Nagelkerke-R² berechnen
+
+#r2_nagelkerke(glmm_nb_continous)
+
+
+
+## Vorhersagegeraden
+
+# Mittlere Hangneigung
+mean_vals <- df_scaled %>%
+  summarise(
+    Elevation_scaled = mean(Elevation_scaled, na.rm = TRUE),
+    Hangneigung_scaled = mean(Hangneigung_scaled, na.rm = TRUE)
+  )
+
+# Neue Datenbasis für die Vorhersage erstellen
+newdata <- expand.grid(
+  Cover_Juvenile_scaled = seq(min(df_scaled$Cover_Juvenile_scaled, na.rm = TRUE),
+                              max(df_scaled$Cover_Juvenile_scaled, na.rm = TRUE),
+                              length.out = 100),
+  Elevation_scaled = mean_vals$Elevation_scaled,
+  Hangneigung_scaled = mean_vals$Hangneigung_scaled,
+  Alm = NA  # Zufallseffekt mitteln wir heraus
+)
+
+newdata$Gesamtartenzahl_pred <- predict(glmm_nb_continous, newdata, type = "response", re.form = NA)
+
+mu_CJ <- mean(df$Cover_Juvenile, na.rm = TRUE)
+sigma_CJ <- sd(df$Cover_Juvenile, na.rm = TRUE)
+
+newdata$Cover_Juvenile <- newdata$Cover_Juvenile_scaled * sigma_CJ + mu_CJ
+
+
+prediction_slope_mean <- ggplot(df, aes(x = Cover_Juvenile, y = Gesamtartenzahl)) +
+  geom_point(alpha = 0.5, aes(color = "Vegetationsaufnahme")) +  # Punkte mit Label "Vegetationsaufnahme"
+  geom_line(data = newdata, aes(x = Cover_Juvenile, y = Gesamtartenzahl_pred, color = "Vorhersage mittlere Hangneigung (30 °)"), 
+            linewidth = 1) +  # Vorhersage mit Label "Vorhersage 20 °"
+  labs(title = "Vorhersage für mittlere Hangneigung (30 °)",
+       x = "Cover Juvenile (%)", y = "Gesamtartenzahl (Vorhersage)",
+       color = "Legende") +  # Legendentitel
+  scale_color_manual(values = c("Vegetationsaufnahme" = "black", "Vorhersage mittlere Hangneigung (30 °)" = "blue")) +  # Farben definieren
+  theme_minimal()
+
+
+# Niedrige Hangneigung (20 °)
+
+mu_HN <- mean(df$Hangneigung, na.rm = TRUE)
+sigma_HN <- sd(df$Hangneigung, na.rm = TRUE)
+
+# Standardisierte Werte für Hangneigung berechnen
+HN_20_scaled <- (20 - mu_HN) / sigma_HN
+HN_40_scaled <- (40 - mu_HN) / sigma_HN
+
+newdata_20 <- expand.grid(
+  Cover_Juvenile_scaled = seq(min(df_scaled$Cover_Juvenile_scaled, na.rm = TRUE),
+                              max(df_scaled$Cover_Juvenile_scaled, na.rm = TRUE),
+                              length.out = 100),
+  Elevation_scaled = mean(df_scaled$Elevation_scaled, na.rm = TRUE),
+  Hangneigung_scaled = HN_20_scaled,
+  Alm = NA  # Zufallseffekt ignorieren
+)
+
+newdata_40 <- expand.grid(
+  Cover_Juvenile_scaled = seq(min(df_scaled$Cover_Juvenile_scaled, na.rm = TRUE),
+                              max(df_scaled$Cover_Juvenile_scaled, na.rm = TRUE),
+                              length.out = 100),
+  Elevation_scaled = mean(df_scaled$Elevation_scaled, na.rm = TRUE),
+  Hangneigung_scaled = HN_40_scaled,
+  Alm = NA
+)
+
+mu_CJ <- mean(df$Cover_Juvenile, na.rm = TRUE)
+sigma_CJ <- sd(df$Cover_Juvenile, na.rm = TRUE)
+
+newdata_20$Cover_Juvenile <- newdata_20$Cover_Juvenile_scaled * sigma_CJ + mu_CJ
+newdata_40$Cover_Juvenile <- newdata_40$Cover_Juvenile_scaled * sigma_CJ + mu_CJ
+
+newdata_20$Gesamtartenzahl_pred <- predict(glmm_nb_continous, newdata_20, type = "response", re.form = NA)
+newdata_40$Gesamtartenzahl_pred <- predict(glmm_nb_continous, newdata_40, type = "response", re.form = NA)
+
+
+# Plot für Hangneigung = 20°
+prediction_slope_20 <- ggplot(df, aes(x = Cover_Juvenile, y = Gesamtartenzahl)) +
+  geom_point(alpha = 0.5, aes(color = "Vegetationsaufnahme")) +  # Punkte mit Label "Vegetationsaufnahme"
+  geom_line(data = newdata_20, aes(x = Cover_Juvenile, y = Gesamtartenzahl_pred, color = "Vorhersage 20 °"), 
+            linewidth = 1) +  # Vorhersage mit Label "Vorhersage 20 °"
+  labs(title = "Vorhersage für Hangneigung = 20°",
+       x = "Cover Juvenile (%)", y = "Gesamtartenzahl (Vorhersage)",
+       color = "Legende") +  # Legendentitel
+  scale_color_manual(values = c("Vegetationsaufnahme" = "black", "Vorhersage 20 °" = "blue")) +  # Farben definieren
+  theme_minimal() +
+  theme(legend.position = "bottom")  # Legende unten anzeigen
+
+# Plot für mittlere Hangneigung (30°)
+prediction_slope_mean <- ggplot(df, aes(x = Cover_Juvenile, y = Gesamtartenzahl)) +
+  geom_point(alpha = 0.5, aes(color = "Vegetationsaufnahme")) +  # Punkte mit Label "Vegetationsaufnahme"
+  geom_line(data = newdata, aes(x = Cover_Juvenile, y = Gesamtartenzahl_pred, color = "Vorhersage mittlere Hangneigung (30 °)"), 
+            linewidth = 1) +  # Vorhersage mit Label "Vorhersage 30 °"
+  labs(title = "Vorhersage für mittlere Hangneigung (30 °)",
+       x = "Cover Juvenile (%)", y = "Gesamtartenzahl (Vorhersage)",
+       color = "Legende") +  # Legendentitel
+  scale_color_manual(values = c("Vegetationsaufnahme" = "black", "Vorhersage mittlere Hangneigung (30 °)" = "blue")) +  # Farben definieren
+  theme_minimal() +
+  theme(legend.position = "bottom")  # Legende unten anzeigen
+
+# Plot für Hangneigung = 40°
+prediction_slope_40 <- ggplot(df, aes(x = Cover_Juvenile, y = Gesamtartenzahl)) +
+  geom_point(alpha = 0.5, aes(color = "Vegetationsaufnahme")) +  # Punkte mit Label "Vegetationsaufnahme"
+  geom_line(data = newdata_40, aes(x = Cover_Juvenile, y = Gesamtartenzahl_pred, color = "Vorhersage 40 °"), 
+            linewidth = 1) +  # Vorhersage mit Label "Vorhersage 40 °"
+  labs(title = "Vorhersage für Hangneigung = 40°",
+       x = "Cover Juvenile (%)", y = "Gesamtartenzahl (Vorhersage)",
+       color = "Legende") +  # Legendentitel
+  scale_color_manual(values = c("Vegetationsaufnahme" = "black", "Vorhersage 40 °" = "blue")) +  # Farben definieren
+  theme_minimal() +
+  theme(legend.position = "bottom")  # Legende unten anzeigen
+
+
+# Plot für mittlere Hangneigung (30°)
+prediction_slope_mean <- ggplot(df, aes(x = Cover_Juvenile, y = Gesamtartenzahl)) +
+  geom_point(alpha = 0.5, aes(color = "Vegetationsaufnahme")) +  # Punkte mit Label "Vegetationsaufnahme"
+  geom_line(data = newdata, aes(x = Cover_Juvenile, y = Gesamtartenzahl_pred, color = "Vorhersage mittlere Hangneigung (30 °)"), 
+            linewidth = 1) +  # Vorhersage mit Label "Vorhersage 30 °"
+  labs(title = "Vorhersage für die Artenzahl nach Verbuschung bei mittlerer Hangneigung (30 °)",
+       x = "Cover Juvenile (%)", y = "Gesamtartenzahl (Vorhersage)",
+       color = "Legende") +  # Legendentitel
+  scale_color_manual(values = c("Vegetationsaufnahme" = "black", "Vorhersage mittlere Hangneigung (30 °)" = "blue")) +  # Farben definieren
+  theme_minimal() +
+  theme(legend.position = "bottom")  # Legende unten anzeigen
+prediction_slope_mean
+#ggsave("figures/Vorhersagegerade_mean.png", plot = prediction_slope_mean, width = 12, height = 10, dpi = 600, bg ="white")
+```
+
+
+

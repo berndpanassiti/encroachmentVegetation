@@ -1,0 +1,911 @@
+---
+title: "iNEXT"
+output: html_document
+date: "2024-09-03"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE,message = FALSE)
+opts_knit$set(root.dir='../')                     # definining working directory; or normalizePath('../')
+options(tibble.print_max = 200, tibble.print_min = 20)
+```
+
+# load libaries
+```{r}
+#Install/load pacman
+if(!require(pacman)){install.packages("pacman");require(pacman)}
+#Install packages
+p_load("tidyverse","vegan","reshape2","magrittr","caret","ggplot2",
+       "iNEXT","ggpubr","ggpmisc")
+```
+
+
+# load rawdata
+```{r}
+load("data/workingdata.RData")
+```
+
+# data preparation for iNEXT
+A001 = b	Bindalm
+A002 = e	Engertalm
+A003 = h	Halsalm
+A004 = k	Königsbachalm1
+A005 = a	Königsbachalm2
+A006 = m	Königsbergalm
+A007 = m	Mittereisalm
+A008 = s	Saletalm
+
+```{r}
+df = vegTreatment%>% group_by(treatment,pasture,plot,species)%>% dplyr::select(treatment,pasture,plot_id,species)
+df = df[!duplicated(df), ]
+
+vegNspeciesTreatment = df %>% 
+  dplyr::group_by(treatment,pasture,species) %>% 
+  dplyr::summarise(n = n())
+
+vegNspeciesTreatment = data.frame(vegNspeciesTreatment)
+```
+
+### control
+#### complete dataset
+```{r}
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(treatment =="control") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="total",
+                                         species="",
+                                         n=72),
+                              vegNspeciesTreatmentN)
+
+control = vegNspeciesTreatmentN$n
+names(control) =  vegNspeciesTreatmentN$species
+```
+
+#### per grassland pasture
+```{r}
+# define data for control; 9 plots in total per pasture
+# A001 - Bindalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% dplyr::filter(treatment =="control",
+                                                               pasture=="Bindalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Bindalm",species="",n=9),vegNspeciesTreatmentN)
+
+A001_C = vegNspeciesTreatmentN$n
+names(A001_C) =  vegNspeciesTreatmentN$species
+
+# A002 - Engertalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% dplyr::filter(treatment =="control",
+                                                               pasture=="Engertalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Engertalm",species="",n=9),vegNspeciesTreatmentN)
+
+A002_C = vegNspeciesTreatmentN$n
+names(A002_C) =  vegNspeciesTreatmentN$species
+
+
+# A003 - Halsalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% dplyr::filter(treatment =="control",
+                                                               pasture=="Halsalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Halsalm",species="",n=9),vegNspeciesTreatmentN)
+
+A003_C = vegNspeciesTreatmentN$n
+names(A003_C) =  vegNspeciesTreatmentN$species
+
+
+# A004 - Königsbachalm1
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% dplyr::filter(treatment =="control",
+                                                               pasture=="Königsbachalm 1") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Königsbachalm1",species="",n=9),vegNspeciesTreatmentN)
+
+A004_C = vegNspeciesTreatmentN$n
+names(A004_C) =  vegNspeciesTreatmentN$species
+
+# A005 - Königsbachalm2
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% dplyr::filter(treatment =="control",
+                                                               pasture=="Königsbachalm 2") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Königsbachalm2",species="",n=9),vegNspeciesTreatmentN)
+
+A005_C = vegNspeciesTreatmentN$n
+names(A005_C) =  vegNspeciesTreatmentN$species
+
+
+
+# A006 - Königsbergalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% dplyr::filter(treatment =="control",
+                                                               pasture=="Königsbergalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Königsbergalm",species="",n=9),vegNspeciesTreatmentN)
+
+A006_C = vegNspeciesTreatmentN$n
+names(A006_C) =  vegNspeciesTreatmentN$species
+
+# A007 - Mittereisalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% dplyr::filter(treatment =="control",
+                                                               pasture=="Mittereisalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Mittereisalm",species="",n=9),vegNspeciesTreatmentN)
+
+A007_C = vegNspeciesTreatmentN$n
+names(A007_C) =  vegNspeciesTreatmentN$species
+
+# A008 - Saletalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% dplyr::filter(treatment =="control",
+                                                               pasture=="Saletalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Mittereisalm",species="",n=9),vegNspeciesTreatmentN)
+
+A008_C = vegNspeciesTreatmentN$n
+names(A008_C) =  vegNspeciesTreatmentN$species
+```
+
+
+
+## encroachment
+#### create complete dateset
+```{r}
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% 
+  dplyr::filter(treatment =="encroachment") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="total",
+                species="",
+                n=72),
+                vegNspeciesTreatmentN)
+
+encroachment = vegNspeciesTreatmentN$n
+names(encroachment) =  vegNspeciesTreatmentN$species
+```
+
+
+#### create datasets per pasture
+```{r}
+# define data for encroachment; 9 plots in total per pasture
+# A001 - Bindalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% 
+  dplyr::filter(treatment =="encroachment",
+                 pasture=="Bindalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Bindalm",
+                                         species="",n=9),
+                              vegNspeciesTreatmentN)
+
+A001_V = vegNspeciesTreatmentN$n
+names(A001_V) =  vegNspeciesTreatmentN$species
+
+# A002 - Engertalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(treatment =="encroachment",
+         pasture=="Engertalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Engertalm",species="",n=9),
+                              vegNspeciesTreatmentN)
+
+A002_V = vegNspeciesTreatmentN$n
+names(A002_V) =  vegNspeciesTreatmentN$species
+
+
+# A003 - Halsalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(treatment =="encroachment",
+               pasture=="Halsalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Halsalm",
+                                         species="",n=9),
+                              vegNspeciesTreatmentN)
+
+A003_V = vegNspeciesTreatmentN$n
+names(A003_V) =  vegNspeciesTreatmentN$species
+
+# A004 - Königsbachalm1
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(treatment =="encroachment",
+                pasture=="Königsbachalm 1") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Königsbachalm1",
+                                         species="",n=9),
+                              vegNspeciesTreatmentN)
+
+A004_V = vegNspeciesTreatmentN$n
+names(A004_V) =  vegNspeciesTreatmentN$species
+
+# A005 - Königsbachalm2
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% 
+  dplyr::filter(treatment =="encroachment",
+                pasture=="Königsbachalm 2") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Königsbachalm2",
+                                         species="",n=9),
+                              vegNspeciesTreatmentN)
+
+A005_V = vegNspeciesTreatmentN$n
+names(A005_V) =  vegNspeciesTreatmentN$species
+
+# A006 - Königsbergalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(treatment =="encroachment",
+                                                               pasture=="Königsbergalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Königsbergalm",
+                                         species="",n=9),
+                              vegNspeciesTreatmentN)
+
+A006_V = vegNspeciesTreatmentN$n
+names(A006_V) =  vegNspeciesTreatmentN$species
+
+# A007 - Mittereisalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(treatment =="encroachment",
+              pasture=="Mittereisalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Mittereisalm",
+                                         species="",n=9),
+                              vegNspeciesTreatmentN)
+
+A007_V = vegNspeciesTreatmentN$n
+names(A007_V) =  vegNspeciesTreatmentN$species
+
+# A008 - Saletalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(treatment =="encroachment",
+                  pasture=="Saletalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Mittereisalm",
+                                         species="",n=9),
+                              vegNspeciesTreatmentN)
+
+A008_V = vegNspeciesTreatmentN$n
+names(A008_V) =  vegNspeciesTreatmentN$species
+```
+
+
+
+
+```{r}
+# prepare for iNEXT
+vegInput = list(
+  control = control, 
+  encroachment = encroachment)
+
+
+vegInput_A001 = list(
+  control = A001_C, 
+  encroachment = A001_V)
+
+vegInput_A002 = list(
+  control = A002_C, 
+  encroachment = A002_V)
+
+vegInput_A003 = list(
+  control = A003_C, 
+  encroachment = A003_V)
+
+vegInput_A004 = list(
+  control = A004_C, 
+  encroachment = A004_V)
+
+vegInput_A005 = list(
+  control = A005_C, 
+  encroachment = A005_V)
+
+vegInput_A006 = list(
+  control = A006_C, 
+  encroachment = A006_V)
+
+vegInput_A007 = list(
+  control = A007_C, 
+  encroachment = A007_V)
+
+vegInput_A008 = list(
+  control = A008_C, 
+  encroachment = A008_V)
+
+```
+
+
+# iNEXT
+## All pastures together
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2024)
+
+t <- seq(1, 72, by=1)
+out.inc <- iNEXT(vegInput, q=0, datatype="incidence_freq", size=t)
+# Sample‐size‐based R/E curves
+
+gt = ggiNEXT(out.inc, type=1, color.var="Assemblage") +
+theme_bw(base_size = 18) +
+theme(legend.position="bottom",
+legend.title=element_blank(),
+text=element_text(size=18),
+legend.box = "vertical") +
+  #https://jrgraphix.net/r/Unicode/25A0-25FF
+  scale_shape_manual(values=c("\u25B3","\u25B2"))+
+    scale_fill_manual(values=c(
+"#FF0000",
+"#0000FF"))+
+  scale_colour_manual(values=c(
+"#FF0000",
+"#0000FF"))+
+  scale_x_continuous(n.breaks = 10, 
+                     limits = c(1, 72))+
+  labs(title="");gt
+```
+
+
+## Bindalm
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2024)
+t <- seq(1, 9, by=1)
+out.inc <- iNEXT(vegInput_A001, q=0, datatype="incidence_freq", size=t)
+# Sample‐size‐based R/E curves
+
+g1 = ggiNEXT(out.inc, type=1, color.var="Assemblage") +
+theme_bw(base_size = 18) +
+theme(legend.position="bottom",
+legend.title=element_blank(),
+text=element_text(size=18),
+legend.box = "vertical") +
+  #https://jrgraphix.net/r/Unicode/25A0-25FF
+  scale_shape_manual(values=c("\u25B3","\u25B2"))+
+    scale_fill_manual(values=c(
+"#FF0000",
+"#0000FF"))+
+  scale_colour_manual(values=c(
+"#FF0000",
+"#0000FF"))+
+  scale_x_continuous(n.breaks = 9, limits = c(1, 9))+
+  labs(title="Bindalm (1100 m)")
+```
+
+## Engertalm
+
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2024)
+t <- seq(1, 9, by=1)
+out.inc <- iNEXT(vegInput_A002, q=0, datatype="incidence_freq", size=t)
+# Sample‐size‐based R/E curves
+
+g2 = ggiNEXT(out.inc, type=1, color.var="Assemblage") +
+theme_bw(base_size = 18) +
+theme(legend.position="bottom",
+legend.title=element_blank(),
+text=element_text(size=18),
+legend.box = "vertical") +
+  #https://jrgraphix.net/r/Unicode/25A0-25FF
+  scale_shape_manual(values=c("\u25B3","\u25B2"))+
+    scale_fill_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_colour_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_x_continuous(n.breaks = 9, limits = c(1, 9))+
+  labs(title="Engertalm (995 m)")
+```
+
+
+## Halsalm
+
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2024)
+t <- seq(1, 9, by=1)
+out.inc <- iNEXT(vegInput_A003, q=0, datatype="incidence_freq", size=t)
+# Sample‐size‐based R/E curves
+
+g3 = ggiNEXT(out.inc, type=1, color.var="Assemblage") +
+theme_bw(base_size = 18) +
+theme(legend.position="bottom",
+legend.title=element_blank(),
+text=element_text(size=18),
+legend.box = "vertical") +
+  #https://jrgraphix.net/r/Unicode/25A0-25FF
+  scale_shape_manual(values=c("\u25B3","\u25B2"))+
+    scale_fill_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_colour_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_x_continuous(n.breaks = 9, limits = c(1, 9))+
+  labs(title="Halsalm (1250 m)")
+```
+
+
+## 	Königsbachalm 1
+
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2024)
+t <- seq(1, 9, by=1)
+out.inc <- iNEXT(vegInput_A004, q=0, datatype="incidence_freq", size=t)
+# Sample‐size‐based R/E curves
+
+g4 = ggiNEXT(out.inc, type=1, color.var="Assemblage") +
+theme_bw(base_size = 18) +
+theme(legend.position="bottom",
+legend.title=element_blank(),
+text=element_text(size=18),
+legend.box = "vertical") +
+  #https://jrgraphix.net/r/Unicode/25A0-25FF
+  scale_shape_manual(values=c("\u25B3","\u25B2"))+
+    scale_fill_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_colour_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_x_continuous(n.breaks = 9, limits = c(1, 9))+
+  labs(title="	Königsbachalm 1 (1200 m)")
+```
+
+
+## Königsbachalm 2
+
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2024)
+t <- seq(1, 9, by=1)
+out.inc <- iNEXT(vegInput_A005, q=0, datatype="incidence_freq", size=t)
+# Sample‐size‐based R/E curves
+
+g5 = ggiNEXT(out.inc, type=1, color.var="Assemblage") +
+theme_bw(base_size = 18) +
+theme(legend.position="bottom",
+legend.title=element_blank(),
+text=element_text(size=18),
+legend.box = "vertical") +
+  #https://jrgraphix.net/r/Unicode/25A0-25FF
+  scale_shape_manual(values=c("\u25B3","\u25B2"))+
+    scale_fill_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_colour_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_x_continuous(n.breaks = 9, limits = c(1, 9))+
+  labs(title="Königsbachalm 2 (1270 m)")
+```
+
+## Königsbergalm
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2024)
+t <- seq(1, 9, by=1)
+out.inc <- iNEXT(vegInput_A006, q=0, datatype="incidence_freq", size=t)
+# Sample‐size‐based R/E curves
+
+g6 = ggiNEXT(out.inc, type=1, color.var="Assemblage") +
+theme_bw(base_size = 18) +
+theme(legend.position="bottom",
+legend.title=element_blank(),
+text=element_text(size=18),
+legend.box = "vertical") +
+  #https://jrgraphix.net/r/Unicode/25A0-25FF
+  scale_shape_manual(values=c("\u25B3","\u25B2"))+
+    scale_fill_manual(values=c(
+"#FF0000", "#0000FF"))+
+  scale_colour_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_x_continuous(n.breaks = 9, limits = c(1, 9))+
+  labs(title="Königsbergalm (1595 m)")
+```
+
+## Mittereisalm
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2024)
+t <- seq(1, 9, by=1)
+out.inc <- iNEXT(vegInput_A007, q=0, datatype="incidence_freq", size=t)
+# Sample‐size‐based R/E curves
+
+g7 = ggiNEXT(out.inc, type=1, color.var="Assemblage") +
+theme_bw(base_size = 18) +
+theme(legend.position="bottom",
+legend.title=element_blank(),
+text=element_text(size=18),
+legend.box = "vertical") +
+  #https://jrgraphix.net/r/Unicode/25A0-25FF
+  scale_shape_manual(values=c("\u25B3","\u25B2"))+
+    scale_fill_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_colour_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_x_continuous(n.breaks = 9, limits = c(1, 9))+
+  labs(title="Mittereisalm (1340 m)")
+```
+
+## Saletalm
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2024)
+t <- seq(1, 9, by=1)
+out.inc <- iNEXT(vegInput_A008, q=0, datatype="incidence_freq", size=t)
+# Sample‐size‐based R/E curves
+
+g8 = ggiNEXT(out.inc, type=1, color.var="Assemblage") +
+theme_bw(base_size = 18) +
+theme(legend.position="bottom",
+legend.title=element_blank(),
+text=element_text(size=18),
+legend.box = "vertical") +
+  #https://jrgraphix.net/r/Unicode/25A0-25FF
+  scale_shape_manual(values=c("\u25B3","\u25B2"))+
+    scale_fill_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_colour_manual(values=c(
+"#FF0000","#0000FF"))+
+  scale_x_continuous(n.breaks = 9, limits = c(1, 9))+
+  labs(title="Saletalm (680 m)")
+```
+
+A001 = b	Bindalm
+A002 = e	Engertalm
+A003 = h	Halsalm
+A004 = k	Königsbachalm1
+A005 = a	Königsbachalm2
+A006 = m	Königsbergalm
+A007 = m	Mittereisalm
+A008 = s	Saletalm
+
+
+
+## Combined plot
+```{r}
+#ggarrange(g1,g2,g3,g4,g5,g6,g7,g8, ncol = 4, nrow = 2, common.legend = TRUE)
+# according elevation
+
+ggarrange(g8,g2,g1,g4,
+          g3,g5,g7,g6, ncol = 4, nrow = 2, common.legend = TRUE,
+legend="bottom")
+
+```
+
+# No distinction between control and encroachment
+## Create datasets per pasture
+```{r}
+# define data for encroachment; 9 plots in total per pasture
+# A001 - Bindalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% 
+  dplyr::filter(pasture=="Bindalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Bindalm",
+                                         species="",n=18),
+                              vegNspeciesTreatmentN)
+
+b = vegNspeciesTreatmentN$n
+names(b) =  vegNspeciesTreatmentN$species
+
+# A002 - Engertalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(pasture=="Engertalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Engertalm",species="",n=18),
+                              vegNspeciesTreatmentN)
+
+e = vegNspeciesTreatmentN$n
+names(e) =  vegNspeciesTreatmentN$species
+
+
+# A003 - Halsalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(pasture=="Halsalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Halsalm",
+                                         species="",n=18),
+                              vegNspeciesTreatmentN)
+
+h = vegNspeciesTreatmentN$n
+names(h) =  vegNspeciesTreatmentN$species
+
+# A004 - Königsbachalm1
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(pasture=="Königsbachalm 1") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Königsbachalm1",
+                                         species="",n=18),
+                              vegNspeciesTreatmentN)
+
+k = vegNspeciesTreatmentN$n
+names(k) =  vegNspeciesTreatmentN$species
+
+# A005 - Königsbachalm2
+vegNspeciesTreatmentN = vegNspeciesTreatment %>% 
+  dplyr::filter(pasture=="Königsbachalm 2") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Königsbachalm2",
+                                         species="",n=18),
+                              vegNspeciesTreatmentN)
+
+a = vegNspeciesTreatmentN$n
+names(a) =  vegNspeciesTreatmentN$species
+
+# A006 - Königsbergalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(pasture=="Königsbergalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Königsbergalm",
+                                         species="",n=18),
+                              vegNspeciesTreatmentN)
+
+g = vegNspeciesTreatmentN$n
+names(g) =  vegNspeciesTreatmentN$species
+
+# A007 - Mittereisalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(pasture=="Mittereisalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Mittereisalm",
+                                         species="",n=18),
+                              vegNspeciesTreatmentN)
+
+m = vegNspeciesTreatmentN$n
+names(m) =  vegNspeciesTreatmentN$species
+
+# A008 - Saletalm
+vegNspeciesTreatmentN = vegNspeciesTreatment %>%
+  dplyr::filter(pasture=="Saletalm") %>%
+  dplyr::select(pasture,species,n)
+vegNspeciesTreatmentN = rbind(data.frame(pasture="Mittereisalm",
+                                         species="",n=18),
+                              vegNspeciesTreatmentN)
+
+s = vegNspeciesTreatmentN$n
+names(s) =  vegNspeciesTreatmentN$species
+
+
+vegInput = list(
+e = e,
+b = b,
+s = s,
+k = k,
+h = h,
+m = m,
+a = a,
+g = g)
+```
+
+
+## iNEXT
+```{r}
+rm(.Random.seed, envir=globalenv())
+set.seed(2024)
+t <- seq(1, 13, by=1)
+out.inc <- iNEXT(vegInput, q=0, datatype="incidence_freq", size=t)
+# Sample‐size‐based R/E curves
+```
+
+
+## Plot iNEXT output
+```{r}
+g = ggiNEXT(out.inc, type=1, color.var="Assemblage") +
+theme_bw(base_size = 18) +
+theme(legend.position="bottom",
+legend.title=element_blank(),
+text=element_text(size=18),
+legend.box = "vertical") +
+  #https://jrgraphix.net/r/Unicode/25A0-25FF
+  scale_shape_manual(values=c("\u25B3","\u25B2","\u25BD","\u25BC","\u25c7","\u25c6","\u25CB","\u25CF"))+
+    scale_fill_manual(values=c(
+"#FF0000","#00FF00","#00FFFF","#FF00FF",
+"#0000FF","#FF8000","#800000","#808000"))+
+  scale_colour_manual(values=c(
+"#FF0000","#00FF00","#00FFFF","#FF00FF",
+"#0000FF","#FF8000","#800000","#808000"))
+
+g
+```
+
+
+
+```{r}
+#order BBG according iNEXT
+arranged = out.inc$DataInfo %>% dplyr::arrange(desc(S.obs))
+arrangedSites = arranged %>% dplyr::select(Assemblage,S.obs) %>%
+  dplyr::rename(site_id=Assemblage)
+```
+
+
+# Create Final table
+
+```{r}
+df1 = arrangedSites
+
+df2 = out.inc$iNextEst$size_based %>% 
+  dplyr::filter(t==1) %>%
+  dplyr::rename(site_id=Assemblage) %>%
+  dplyr::select(site_id,qD)
+
+df_list <- list(df1, df2)      
+
+#merge all data frames together
+final = Reduce(function(x, y) merge(x, y, all.x=TRUE), df_list)
+
+final %<>% dplyr::rename(gammaPlot = S.obs,
+                        alphaPlot = qD) %>% 
+  dplyr::select(site_id, alphaPlot,gammaPlot)
+```
+
+
+## Calculate slope
+
+```{r}
+# not correct
+# https://rpubs.com/brouwern/iNEXTvVEGAN
+# raremax <- min(rowSums(vegInc))
+# dat = data.frame(vegan::rareslope(vegInc,sample=raremax))
+# vegSlopes = data.frame(rownames(dat),dat[,1])
+# colnames(vegSlopes)=c("site_id","slope")
+
+
+final$ln_alpha = log(final$alphaPlot)
+final$ln_gamma = log(final$gammaPlot)
+
+final$slope = (final$ln_gamma-final$ln_alpha)/log(18)
+```
+
+## Calculate diversity estimators
+1st order jackknife: It uses the frequency of uniques to estimate the number of undetected species; 
+see Burnham and Overton (1978).
+
+2nd order jackknife: It uses the frequencies of uniques and duplicates to estimate the number of undetected species; 
+see Burnham and Overton (1978).
+
+Chao2 (Chao, 1987): This approach uses the frequencies of uniques and duplicates to estimate the number of undetected species; see Chao (1987) or Eq. (11a) in Chao and Chiu (2016b).
+
+
+
+### create table
+```{r}
+df = veg %>% dplyr::filter(layer=="hl")
+rownames(df) = df[,1]
+df = df[,-c(1,2)] %>% as.data.frame() 
+
+e = df %>% select(starts_with("e"))
+b = df %>% select(starts_with("b"))
+s = df %>% select(starts_with("s"))
+k = df %>% select(starts_with("k"))
+h = df %>% select(starts_with("h"))
+m = df %>% select(starts_with("m"))
+a = df %>% select(starts_with("a"))
+g = df %>% select(starts_with("g"))
+
+vegList = list(
+e = e,
+b = b,
+s = s,
+k = k,
+h = h,
+m = m,
+a = a,
+g = g)
+```
+
+
+```{r}
+# final$jackknife_1order = unlist(lapply(veg,fossil::jack1))
+# final$jackknife_2order = unlist(lapply(veg,fossil::jack2))
+# final$Chao2 = unlist(lapply(veg,fossil::chao2))
+
+
+chaoEstimates = lapply(vegList,function(x) SpadeR::ChaoSpecies(x,"incidence_raw",k=10,conf=0.95))
+
+
+
+df = data.frame(rbind(
+chaoEstimates$e$Species_table,
+chaoEstimates$b$Species_table,
+chaoEstimates$s$Species_table,
+chaoEstimates$k$Species_table,
+chaoEstimates$h$Species_table,
+chaoEstimates$m$Species_table,
+chaoEstimates$a$Species_table,
+chaoEstimates$g$Species_table))
+
+df$site_id = rep(c("e","b","s","k","h","m","a","g"),each=8)
+df$type = rownames(df)
+
+
+
+# Remove last character if it's a digit
+df <- df %>%
+ mutate(type = if_else(str_detect(str_sub(type, -1), "\\d"),
+str_sub(type, 1, -2),type))
+
+
+
+# Get the last two column names
+last_two <- names(df)[(ncol(df)-1):ncol(df)]
+
+
+# Get the remaining column names
+remaining <- setdiff(names(df), last_two)
+
+# Reorder: last two first, then the rest
+df_reordered <- df %>%
+ select(all_of(last_two), all_of(remaining))
+
+
+
+
+SRestimates = df_reordered
+
+rownames(SRestimates)= 1:nrow(SRestimates)
+
+
+colnames(SRestimates)[4:6] =c("se","95_lower","95_upper")
+SRestimates$type = trimws(SRestimates$type)
+```
+
+
+```{r}
+# final$jackknife_1order
+
+
+# Filter SRestimates for "1st order jackknife"
+jackknife_1 <- SRestimates %>%
+ filter(type == "1st order jackknife") %>%
+ select(site_id, Estimate) %>%
+ rename(jackknife_1order = Estimate)
+
+
+jackknife_2 <- SRestimates %>%
+ filter(type == "2nd order jackknife") %>%
+ select(site_id, Estimate) %>%
+ rename(jackknife_2order = Estimate)
+
+chao_2 <- SRestimates %>%
+ filter(type == "Chao2 (Chao, 1987)") %>%
+ select(site_id, Estimate) %>%
+ rename(chao_2 = Estimate)
+
+chao_2_bc <- SRestimates %>%
+ filter(type == "Chao2-bc") %>%
+ select(site_id, Estimate) %>%
+ rename(chao_2_bc = Estimate)
+
+# Conditionally remove the column if it exists
+cols_to_remove <- intersect(c("jackknife_1order", "jackknife_2order","chao_2","chao_2_bc"), names(final))
+
+final <- final %>% select(-all_of(cols_to_remove))
+
+
+# Join with final by site_id
+final <- final %>%
+ left_join(jackknife_1, by = "site_id") %>%
+ left_join(jackknife_2, by = "site_id") %>%
+ left_join(chao_2, by = "site_id") %>%
+ left_join(chao_2_bc, by = "site_id")
+
+
+
+
+
+final$jackknife_2order = SRestimates[SRestimates$type=="2nd order jackknife","Estimate"]
+final$chao2   = SRestimates[SRestimates$type=="Chao2 (Chao, 1987)","Estimate"]
+final$chao2bc = SRestimates[SRestimates$type=="Chao2-bc","Estimate"]
+```
+
+
+
+
+
+# Export results to excel
+```{r}
+# Create a blank workbook
+OUT <- openxlsx::createWorkbook()
+
+# Add some sheets to the workbook
+openxlsx::addWorksheet(OUT, "SRestimates")
+openxlsx::addWorksheet(OUT, "SRestimates_complete")
+
+# Write the data to the sheets
+openxlsx::writeData(OUT, sheet = "SRestimates", x = final)
+openxlsx::writeData(OUT, sheet = "SRestimates_complete", x = SRestimates)
+
+
+# Export the file
+openxlsx::saveWorkbook(OUT, paste("results/",gsub("-",".",Sys.Date()),
+                            "-SpeciesRarefactionCurves.xlsx",sep=""),
+                       overwrite = TRUE)
+
+```
