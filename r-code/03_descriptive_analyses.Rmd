@@ -340,7 +340,7 @@ sample_sizes <- plot_data_reduziert %>%
   mutate(label = paste0("n = ", unverbuscht, " | ", verbuscht))
 
 
-Appendix_S4 = ggplot(plot_data_reduziert, aes(x = AlmLabel, y = Gesamtartenzahl, fill = Verbuschung)) +
+Appendix_S5 = ggplot(plot_data_reduziert, aes(x = AlmLabel, y = Gesamtartenzahl, fill = Verbuschung)) +
   geom_boxplot() +
   theme_minimal() +
   labs(
@@ -417,7 +417,7 @@ Appendix_S4 = ggplot(plot_data_reduziert, aes(x = AlmLabel, y = Gesamtartenzahl,
   # X-Achsenbeschriftung rotieren
   theme(axis.text.x = element_text(size = 14, 
                                    angle = 45, 
-                                   hjust = 1)); Appendix_S4
+                                   hjust = 1)); Appendix_S5
 
 ```
 
@@ -471,7 +471,7 @@ ggplot(zeiger_box_long, aes(x = Alm, y = Wert, fill = Verbuschung)) +
 # save plots
 ```{r}
 save(
-  Appendix_S4,
+  Appendix_S5,
   file="results/descriptive_analyses-final_plots.RData"
 )
 ```

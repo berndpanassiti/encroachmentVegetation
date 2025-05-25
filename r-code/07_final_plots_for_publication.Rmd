@@ -23,7 +23,7 @@ opts_chunk$set(fig.align='center',                # aligns all figures
 #Install/load pacman
 if(!require(pacman)){install.packages("pacman");require(pacman)}
 #Install packages
-p_load(tidyverse,dplyr,ggplot2,ggpubr,rcompanion)
+p_load(tidyverse,dplyr,ggplot2,ggpubr,rcompanion,grid)
 ```
 
 # Load working data
@@ -31,6 +31,7 @@ p_load(tidyverse,dplyr,ggplot2,ggpubr,rcompanion)
 load("data/workingdata.RData")
 load("results/descriptive_analyses-final_plots.RData")
 load("results/RDA_plots.RData")
+load("results/isopam.RData")
 ```
 
 # Main document
@@ -54,18 +55,108 @@ ggsave(plot = last_plot(), filename =
        bg = "white")
 ```
 
+## Q1 - Figure 4
+
+```{r}
+cluster <- c("1.3.0", "3.3.1", "3.1.1", "1.2.0", "1.4.0", "1.1.0",
+             "2.1.0", "2.2.1", "2.2.2", "3.3.2", "3.1.2", "3.2.0")
+
+df <- data.frame(
+  Klasse = factor(cluster, levels = cluster),  # feste Reihenfolge
+  Position = 1:12
+)
+
+# Farben: grau von hell nach dunkel
+grau_palette <- rev(gray.colors(12))
+
+
+# Plot
+isopamScheme = ggplot(df, aes(x = Position, y = 1, fill = Klasse)) +
+  geom_tile(color = "black", height = 1) +
+  coord_fixed(ratio = 1)+  # Passe diesen Wert an bis es gut aussieht
+  scale_fill_manual(values = grau_palette) +
+  # Klassenbeschriftung über den Feldern
+  geom_text(aes(label = Klasse), y = 2.0, size = 3.5) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = "none",
+    plot.margin = margin(20, 20, 20, 20)
+  ) +
+  annotate("text", x = 6.5, y = 2.5, label = "Isopam cluster", fontface = "bold") +
+  annotate("text", x = 2, y = 0, label = "low") +
+  annotate("text", x = 6.5, y = 0, label = "encroachment", size = 5, fontface = "bold")+
+  annotate("text", x = 11.5, y = 0, label = "high") +
+  annotate("segment", x = 1, xend = 12, y = -0.6, yend = -0.6, arrow = arrow(length = unit(0.2, "inches")), linewidth = 1);isopamScheme
+
+```
+
+
+
+```{r}
+empty_plot <- ggplot() + theme_void()
+
+# older code with color-coding
+# below = ggarrange(isopamBoxplot,
+#                   empty_plot,
+#                   isopamNMDS,
+# labels = c("(B)", "", "(C)"),
+#           ncol = 3,
+#           nrow = 1,
+#           widths = c(1, 0.2, 1))
+# 
+# 
+# 
+# # Erstelle einen leeren Plot mit dem eingebetteten oberen Plot
+# top_plot <- ggplot() + 
+#  annotation_custom(ggplotGrob(isopamScheme), 
+#                    xmin = -0.2, 
+#                    xmax = 1, 
+#                    ymin = -Inf,
+#                    ymax = Inf) +
+#  theme_void()
+# 
+# # Hauptlayout: Oben 1, unten 2
+# ggarrange(top_plot, below,
+#  labels = c("(A)", ""),
+#  ncol = 1,
+#  heights = c(0.6, 1.4))
+
+
+ggarrange(isopamBoxplot,
+                  empty_plot,
+                  isopamNMDS,
+labels = c("(A)", "", "(B)"),
+          ncol = 3,
+          nrow = 1,
+          widths = c(1, 0.1, 1))
+
+
+ggsave("figures/Fig4.png",
+       plot = last_plot(),
+       device = "png",
+ width = 12, height = 7, 
+ units = "in", 
+ dpi = 300,
+ bg = "white")
+
+```
+
 
 
 # Appendix
 ## S5
 ```{r}
-Appendix_S4
+Appendix_S5
 
 # save plot
 size <- dev.size("in")
 
 ggsave(plot = last_plot(), filename =
-         paste("figures/Appendix_S4.png",sep=""),
+         paste("figures/Appendix_S5.png",sep=""),
        width = size[1]+2, 
        height = size[2]+2, 
        units = "in",
