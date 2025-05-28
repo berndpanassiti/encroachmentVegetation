@@ -24,7 +24,7 @@ opts_chunk$set(fig.align='center',                # aligns all figures
 #Install/load pacman
 if(!require(pacman)){install.packages("pacman");require(pacman)}
 #Install packages
-p_load(tidyverse,dplyr,vegan,ggplot2)
+p_load(tidyverse,dplyr,vegan,ggplot2,magrittr)
 ```
 
 # load data and functions
@@ -146,547 +146,144 @@ ggplot(nmds_points, aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Elevat
 
 
 
-## NMDS mit Zeigerwerten
-### Mit Kontinentalitätszahl
+
+# NMDS mit Zeigerwerten
+
 
 fit <- envfit(nmds, zeigerwerte_mittel[, c("Lichtzahl", "Temperaturzahl", "Kontinentalitaetszahl", "Feuchtezahl", "Reaktionszahl", "Naehrstoffzahl")], permutations = 999)
 
 Hier werden nur Herblayer und Seedling Layer verwendet.
-```{r NMDS mit Zeigerwerten}
+## Data preparation
+```{r}
 df1 = veg_layer_red
 df2 = plot_data
 
 df1 <- df1[order(rownames(df1)), ]
 df2 <- df2[order(df2$Plot_ID), ]
 
-identische_reihenfolge <- all(df1$Rownames == df2$Plot_ID)
-print(identische_reihenfolge) # --> Plots in derselben Reihenfolge
+df2 %<>% dplyr::rename(treatment = Verbuschung,
+                       encroachment = Cover_Juvenile)
 
 
-rm(.Random.seed, envir=globalenv())
-set.seed(2025)
-nmds <- vegan::metaMDS(df1)
+# ensure that row order is the same in both data.frames
+df2_sorted <- df2[match(rownames(df1), df2$Plot_ID), ]
 
-hist(df2$Cover_Juvenile, main = "Histogramm von Verbuschung", xlab = "Verbuschung", breaks = 30)
-mean(df2$Cover_Juvenile[df2$Verbuschung == 1])
-zeigerwerte_mittel <- readxl::read_excel("data/rawdata/Zeigerwerte_mittel_hl_sl.xlsx")
-df2_sorted2 <- df2[match(rownames(veg_layer), df2$Plot_ID), ]
+
+df3 = zeigerwerte_mittel %>% 
+  dplyr::rename(light = Lichtzahl, 
+                temperature = Temperaturzahl, 
+                continentality = Kontinentalitaetszahl, 
+                moisture = Feuchtezahl, 
+                reaction = Reaktionszahl, 
+                nutrient = Naehrstoffzahl)
 
 #Cover_Juvenile zu zeigerwerte_mittel hinzufügen
-zeigerwerte_mittel <- merge(
-  zeigerwerte_mittel, 
-  df2_sorted2[, c("Plot_ID", "Cover_Juvenile", "Verbuschung")], 
+indicatorValues_mean <- merge(
+  df3, 
+  df2_sorted[, c("Plot_ID", "treatment", "encroachment")], 
   by = "Plot_ID", 
   all.x = TRUE
 )
+```
 
 
-fit <- envfit(nmds, zeigerwerte_mittel[, c("Lichtzahl", "Temperaturzahl", "Kontinentalitaetszahl", "Feuchtezahl", "Reaktionszahl", "Naehrstoffzahl")], permutations = 999)
 
-plot(nmds, type = "n")  # Leerer Plot der NMDS
-points(nmds, display = "sites", pch = 21, bg = "lightblue", cex = 1.5)  # Punkte hinzufügen
-plot(fit, col = "red", lwd = 2) 
+## Run NMDS
+```{r NMDS mit Zeigerwerten}
+rm(.Random.seed, envir=globalenv())
+set.seed(2025)
+
+nmds <- vegan::metaMDS(df1)
+
+
+fit <- envfit(nmds, indicatorValues_mean[, c("light",
+                                             "temperature",
+                                             "continentality",
+                                             "moisture",
+                                             "reaction",
+                                             "nutrient")], permutations = 999)
+
+
 nmds_points <- as.data.frame(scores(nmds, display = "sites"))
 nmds_points$Site <- rownames(nmds_points)
 veg_Verbuschung <- data.frame(rownames(veg_layer), df2_sorted2[, 10])
-colnames(veg_Verbuschung) = c("Site", "Verbuschung")
-veg_Verbuschung$Verbuschung <- ifelse(veg_Verbuschung$Verbuschung == 1, "verbuscht", "unverbuscht")
-nmds_points_merge <- merge(nmds_points, veg_Verbuschung, by = "Site", all.x = TRUE)
-zeigerwerte_mittel_nmds <- zeigerwerte_mittel %>%
-  rename(Site = Plot_ID) 
-nmds_points_merge <- merge(
-  nmds_points_merge, 
-  zeigerwerte_mittel_nmds[, c("Site", "Cover_Juvenile")], 
-  by = "Site", 
-  all.x = TRUE
-)
-nmds_points_merge$Verbuschung <- as.factor(nmds_points_merge$Verbuschung) 
+colnames(veg_Verbuschung) = c("Site", "treatment")
 
+indicatorValues_mean_nmds <- indicatorValues_mean %>%
+  rename(Site = Plot_ID) 
+
+nmds_points_merge <- merge(
+  nmds_points, 
+  indicatorValues_mean_nmds[, c("Site", "encroachment","treatment")], 
+  by = "Site", all.x = TRUE)
+
+nmds_points_merge$treatment <- ifelse(nmds_points_merge$treatment == 1, "encroachment", "control")
+nmds_points_merge$treatment <- as.factor(nmds_points_merge$treatment) 
 
 # Vektor aus envfit extrahieren mit Kontinentalitätszahl
 vector_fit <- as.data.frame(fit$vectors$arrows)
 vector_fit$Variable <- rownames(vector_fit)
 
-
-
 vector_fit$label_x <- vector_fit$NMDS1 + 0.19
+```
 
+## Summary
+```{r}
+# Basic summary
+nmds
+
+# Stress value
+stress_value=my_signif(nmds$stress);stress_value
+
+# Scores (site and species)
+scores(nmds)
+
+# Environmental fit (optional, if you have env variables)
+# Assume env_data contains e.g., elevation, slope, etc.
+fit
 ```
 
 
 
-
-
-
-
-
-#### Punktgröße von Cover_Juvenile abhängig
-
-#### Mit Plotbeschriftung nach Verbuschungsgrad
+## Plot NMDS
 ```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Cover_Juvenile)) +
-  geom_point() +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  scale_size_continuous(range = c(3, 10)) +
-  geom_segment(data = vector_fit, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(aes(label = Cover_Juvenile), vjust = -2, hjust = 0.5, size = 3) + # Für Beschriftung der Punkte mit Verbuschung
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Mit Plotbeschriftung nach Verbuschungsgrad", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-
-#### Ohne Plotbeschriftung
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Cover_Juvenile)) +
-  geom_point() +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  scale_size_continuous(range = c(3, 10)) +
-  geom_segment(data = vector_fit, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten -  Ohne Plotbeschriftung", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-
-
-#### Mit Pfeilbeschriftung
-
-```{r}
-ggplot() +
+Appendix_S6 = ggplot() +
   geom_point(
     data = nmds_points_merge,
-    aes(x = NMDS1, y = NMDS2, color = Verbuschung, 
-        size = Cover_Juvenile) ) +
-  scale_color_manual(values = c("verbuscht" = "red",
-                                "unverbuscht" = "darkgreen")) +
+    aes(x = NMDS1, y = NMDS2, 
+        color = treatment, 
+        size = encroachment) ) +
+  scale_color_manual("Treatments:",
+        values =   rev(
+          ggsci::pal_jco("default")(3))[c(2,3)])+
   scale_size_continuous(range = c(3, 10)) +
-  geom_segment(data = vector_fit, 
-               aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), 
-               color = "black", size = 1) +
-   geom_text(data = vector_fit, aes(x = NMDS1,
-                                    y = NMDS2, label = Variable),
-            color = "black", vjust = 0.1) +
-  theme_minimal() +
-  labs(title =
-         "NMDS mit Ellenberg-Zeigerwerten - Mit Pfeilbeschriftung", 
-       x = "NMDS1", y = "NMDS2")
-```
-
-
-
-
-
-
-
-
-
-#### Mit Plotbenennung und Pfeilbezeichnung
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung)) +
-  geom_point(size = 3) +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  geom_segment(data = vector_fit, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(data = vector_fit, aes(x = NMDS1, y = NMDS2, label = Variable),
-            color = "black", vjust = 0.1) +
-  geom_text(data=nmds_points_merge,aes(x=NMDS1,y=NMDS2,label=Site), vjust=-1) +
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Mit Plotbenennung und Pfeilbezeichnung", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-
-
-#### Mit Plotbenennung aber ohne Pfeilbezeichnung
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung)) +
-  geom_point(size = 3) +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  geom_segment(data = vector_fit, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(data=nmds_points_merge,aes(x=NMDS1,y=NMDS2,label=Site), vjust=-1) +
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Mit Plotbenennung aber ohne Pfeilbezeichnung", x = "NMDS1", y = "NMDS2")
-```
-
-
-#### Ohne Plotbenennung
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung)) +
-  geom_point(size = 3) +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  geom_segment(data = vector_fit, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(data = vector_fit, aes(x = label_x, y = NMDS2, label = Variable),
-            color = "black", vjust = - 0.2) +
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten -Ohne Plotbenennung", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-
-
-#### Ohne Plotbenennung und ohne Pfeilbezeichnung
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung)) +
-  geom_point(size = 3) +
-  scale_color_manual(values = c("verbuscht" = "red", 
-                                "unverbuscht" = "darkgreen")) +
   geom_segment(data = vector_fit, 
                aes(x = 0, y = 0, 
-                   xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), 
+                   xend = NMDS1, 
+                   yend = NMDS2),
+               arrow = arrow(
+                 length = unit(0.2, "cm")), 
                color = "black", size = 1) +
+   geom_text(data = vector_fit, 
+             aes(x = NMDS1,
+                 y = NMDS2, 
+                 label = Variable),
+            color = "black", 
+            vjust = 0.1) +
   theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Ohne Plotbenennung und ohne Pfeilbezeichnung", x = "NMDS1", y = "NMDS2")
+  labs(title ="", 
+       x = "NMDS1", 
+       y = "NMDS2")+
+  annotate("text", x = Inf, y = -Inf,
+           label = paste("Stress =", stress_value),
+           hjust = 1.1, vjust = -0.5, size = 4);Appendix_S6
 ```
 
-
-### Ohne Kontinentalitätszahl
+# save
 ```{r}
-fit_ohne_Kont <- envfit(nmds, zeigerwerte_mittel[, c("Lichtzahl", "Temperaturzahl", "Feuchtezahl", "Reaktionszahl", "Naehrstoffzahl")], permutations = 999)
-
-
-# Vektor aus envfit extrahieren ohne Kontinentalitätszahl
-vector_fit_ohne_Kont <- as.data.frame(fit_ohne_Kont$vectors$arrows)
-vector_fit_ohne_Kont$Variable <- rownames(vector_fit_ohne_Kont)
-vector_fit_ohne_Kont$label_x <- vector_fit_ohne_Kont$NMDS1 + 0.19
-
-nmds_points <- as.data.frame(scores(nmds, display = "sites"))
-nmds_points$Site <- rownames(nmds_points)
-veg_Verbuschung <- data.frame(rownames(veg_layer), df2_sorted2[, 10])
-colnames(veg_Verbuschung) = c("Site", "Verbuschung")
-veg_Verbuschung$Verbuschung <- ifelse(veg_Verbuschung$Verbuschung == 1, "verbuscht", "unverbuscht")
-nmds_points_merge <- merge(nmds_points, veg_Verbuschung, by = "Site", all.x = TRUE)
-zeigerwerte_mittel_nmds <- zeigerwerte_mittel %>%
-  rename(Site = Plot_ID) 
-nmds_points_merge <- merge(
-  nmds_points_merge, 
-  zeigerwerte_mittel_nmds[, c("Site", "Cover_Juvenile")], 
-  by = "Site", 
-  all.x = TRUE
+save(
+  Appendix_S6,
+  file="results/ordinations_NMDS.RData"
 )
-nmds_points_merge$Verbuschung <- as.factor(nmds_points_merge$Verbuschung)
-```
-
-
-##### Mit Plotbeschriftung nach Verbuschungsgrad
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Cover_Juvenile)) +
-  geom_point() +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  scale_size_continuous(range = c(3, 10)) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(aes(label = Cover_Juvenile), vjust = -2, hjust = 0.5, size = 3) + # Für Beschriftung der Punkte mit Verbuschung
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Mit Plotbeschriftung nach Verbuschungsgrad", x = "NMDS1", y = "NMDS2")
-```
-
-
-##### Ohne Plotbeschriftung
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Cover_Juvenile)) +
-  geom_point() +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  scale_size_continuous(range = c(3, 10)) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Ohne Plotbeschriftung", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-
-#### Mit Pfeilbeschriftung
-```{r}
-ggplot() +
-  geom_point(
-    data = nmds_points_merge,
-    aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Cover_Juvenile)
-  ) +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  scale_size_continuous(range = c(3, 10)) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-   geom_text(data = vector_fit_ohne_Kont, aes(x = NMDS1, y = NMDS2, label = Variable),
-            color = "black", vjust = 0.1) +
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Mit Pfeilbeschriftung", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-#### Mit Plotbenennung und Pfeilbezeichnung
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung)) +
-  geom_point(size = 3) +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(data = vector_fit_ohne_Kont, aes(x = NMDS1, y = NMDS2, label = Variable),
-            color = "black", vjust = 0.1) +
-  geom_text(data=nmds_points_merge,aes(x=NMDS1,y=NMDS2,label=Site), vjust=-1) +
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Mit Plotbenennung und Pfeilbezeichnung", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-
-#### Mit Plotbenennung aber ohne Pfeilbezeichnung
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung)) +
-  geom_point(size = 3) +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(data=nmds_points_merge,aes(x=NMDS1,y=NMDS2,label=Site), vjust=-1) +
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Mit Plotbenennung aber ohne Pfeilbezeichnung", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-#### Ohne Plotbenennung
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung)) +
-  geom_point(size = 3) +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(data = vector_fit_ohne_Kont, aes(x = label_x, y = NMDS2, label = Variable),
-            color = "black", vjust = - 0.2) +
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Ohne Plotbenennung", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-
-
-#### Ohne Plotbenennung und ohne Pfeilbezeichnung
-```{r}
-ggplot(nmds_points_merge, aes(x = NMDS1, y = NMDS2, color = Verbuschung)) +
-  geom_point(size = 3) +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten - Ohne Plotbenennung und ohne Pfeilbezeichnung", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-### Autoplot: Scale observations by species cover
-#### Acer pseudoplatanus
-```{r}
-source("r-code/autoplot.metaMDS.r")
-df1 = veg_layer_red
-df2 = plot_data
-
-df1 <- df1[order(rownames(df1)), ]
-df2 <- df2[order(df2$Plot_ID), ]
-
-df2$Verbuschung <- ifelse(df2$Verbuschung == 1, "verbuscht", "unverbuscht")
-
-ggplot2::autoplot(nmds, 
-                  obscolor = df2$Verbuschung, 
-                  obssize = df1$'Acer pseudoplatanus', 
-                  title = "Acer pseudoplatanus",
-                  size_legend_title = "Cover")
-```
-
-
-```{r}
-ggplot2::autoplot(
-  nmds, 
-  obscolor = df2$Verbuschung, 
-  obssize = df1$'Acer pseudoplatanus', 
-  title = "Acer pseudoplatanus", 
-  size_legend_title = "Cover") +
-  scale_color_manual(
-    values = c("unverbuscht" = "darkgreen",
-               "verbuscht" = "red"))
-```
-
-
-
-
-#### PDF mit Arten ohne Zeigerwerte
-```{r,eval=FALSE}
-pdf(paste("figures/",gsub("-",".",Sys.Date()),"-NMDS_plots_species.pdf",sep=""), width = 8, height = 6)
-
-# Iteriere über die Spalten in df1 (jede Spalte ist eine Art)
-for (species in colnames(df1)) {
-  
-  # Erstelle den Plot für jede Art
-  p <- ggplot2::autoplot(
-    nmds, 
-    obscolor = df2$Verbuschung,  # Farbgebung basierend auf Verbuschung
-    obssize = df1[[species]],  # Punktgröße basierend auf der Abundanz der aktuellen Art
-    size_legend_title = "Cover in %"
-  ) +
-  scale_color_manual(values = c("unverbuscht" = "darkgreen", "verbuscht" = "red")) +  # Farbzuweisung für Verbuschung
-  ggtitle(species)  # Setze den Artnamen als Titel
-  
-  # Drucke den Plot (es wird nur der aktuelle Plot für die Art gedruckt)
-  print(p)
-}
-
-# Schließe das PDF-Dokument
-dev.off()
-```
-
-
-
-
-#### PDF mit Arten mit Zeigerwerten
-Berechne die Umweltanpassung (envfit)
-```{r, eval=FALSE}
-fit_ohne_Kont <- envfit(nmds, zeigerwerte_mittel[, c("Lichtzahl", "Temperaturzahl", "Feuchtezahl", "Reaktionszahl", "Naehrstoffzahl")], permutations = 999)
-
-# Extrahiere die Vektoren der Umweltvariablen (Pfeile)
-fit_vectors <- fit_ohne_Kont$vectors$arrows
-
-# Setze den Pfad für die PDF-Datei
-pdf(paste("figures/",gsub("-",".",Sys.Date()),"-NMDS_plots_species_with_arrows.pdf",sep=""), width = 8, height = 6)
-
-# Iteriere über die Spalten in df1 (jede Spalte ist eine Art)
-for (species in colnames(df1)) {
-  
-  # Erstelle den Plot für jede Art
-  p <- ggplot2::autoplot(
-    nmds, 
-    obscolor = df2$Verbuschung,  # Farbgebung basierend auf Verbuschung
-    obssize = df1[[species]],  # Punktgröße basierend auf der Abundanz der aktuellen Art
-    size_legend_title = "Cover in %"
-  ) +
-  scale_color_manual(values = c("unverbuscht" = "darkgreen", "verbuscht" = "red")) +  # Farbzuweisung für Verbuschung
-  ggtitle(species) +  # Setze den Artnamen als Titel
-  theme_minimal()  # Optional: Minimales Design
-  
-  # Extrahiere die Namen der Variablen (Zeigerwerte)
-  fit_vectors_df <- as.data.frame(fit_vectors)
-  
-  # Füge Pfeile für die Umweltvariablen (Zeigerwerte) hinzu
-  p <- p + 
-    geom_segment(data = fit_vectors_df, 
-                 aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),  # Verwende die richtigen Spaltennamen
-                 arrow = arrow(type = "open", length = unit(0.2, "inches")), 
-                 color = "black", size = 0.5) +
-     ggrepel::geom_text_repel(data = fit_vectors_df, 
-                             aes(x = NMDS1, y = NMDS2, label = rownames(fit_vectors_df)), 
-                             color = "black", 
-                             size = 2,  # Größe der Schrift
-                             box.padding = unit(0.3, "lines"),  # Abstand um den Textkasten
-                             point.padding = unit(0.5, "lines"),  # Abstand um den Pfeil
-                             segment.color = "grey50",  # Verbindungslinienfarbe
-                             max.overlaps = Inf) 
-   
-  # Drucke den Plot (es wird nur der aktuelle Plot für die Art gedruckt)
-  print(p)
-}
-
-# Schließe das PDF-Dokument
-dev.off()
-```
-
-
-### NMDS mit Punktgrößenskalierung nach Zeigerwerten:
-```{r}
-nmds_points_merge_zeiger <- merge(nmds_points, zeigerwerte_mittel_nmds, by = "Site", all.x = TRUE)
-nmds_points_merge_zeiger$Lichtzahl <- round(nmds_points_merge_zeiger$Lichtzahl, 2)
-nmds_points_merge_zeiger$Temperaturzahl <- round(nmds_points_merge_zeiger$Temperaturzahl, 2)
-nmds_points_merge_zeiger$Feuchtezahl <- round(nmds_points_merge_zeiger$Feuchtezahl, 2)
-nmds_points_merge_zeiger$Reaktionszahl <- round(nmds_points_merge_zeiger$Reaktionszahl, 2)
-nmds_points_merge_zeiger$Naehrstoffzahl <- round(nmds_points_merge_zeiger$Naehrstoffzahl, 2)
-
-nmds_points_merge_zeiger$Verbuschung <- ifelse(nmds_points_merge_zeiger$Verbuschung == 1, "verbuscht", "unverbuscht")
-```
-
-
-
-#### Lichtzahl
-```{r}
-ggplot(nmds_points_merge_zeiger, aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Lichtzahl)) +
-  geom_point() +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  scale_size_continuous(range = c(2, 10)) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(aes(label = Lichtzahl), vjust = -2, hjust = 0.5, size = 3) + # Für Beschriftung der Punkte mit Verbuschung
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten (Punktgröße nach Lichtzahl)", x = "NMDS1", y = "NMDS2")
-```
-
-
-#### Temperaturzahl
-```{r}
-ggplot(nmds_points_merge_zeiger, aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Temperaturzahl)) +
-  geom_point() +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  scale_size_continuous(range = c(2, 10)) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(aes(label = Temperaturzahl), vjust = -2, hjust = 0.5, size = 3) + # Für Beschriftung der Punkte mit Verbuschung
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten (Punktgröße nach Temperaturzahl)", x = "NMDS1", y = "NMDS2")
-```
-
-
-#### Feuchtezahl
-```{r}
-ggplot(nmds_points_merge_zeiger, aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Feuchtezahl)) +
-  geom_point() +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  scale_size_continuous(range = c(2, 10)) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(aes(label = Feuchtezahl), vjust = -2, hjust = 0.5, size = 3) + # Für Beschriftung der Punkte mit Verbuschung
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten (Punktgröße nach Feuchtezahl)", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-
-
-#### Reaktionszahl
-```{r}
-ggplot(nmds_points_merge_zeiger, aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Reaktionszahl)) +
-  geom_point() +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  scale_size_continuous(range = c(2, 10)) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(aes(label = Reaktionszahl), vjust = -2, hjust = 0.5, size = 3) + # Für Beschriftung der Punkte mit Verbuschung
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten (Punktgröße nach Reaktionszahl)", x = "NMDS1", y = "NMDS2")
-```
-
-
-
-#### Naehrstoffzahl
-```{r}
-
-ggplot(nmds_points_merge_zeiger, aes(x = NMDS1, y = NMDS2, color = Verbuschung, size = Naehrstoffzahl)) +
-  geom_point() +
-  scale_color_manual(values = c("verbuscht" = "red", "unverbuscht" = "darkgreen")) +
-  scale_size_continuous(range = c(2, 10)) +
-  geom_segment(data = vector_fit_ohne_Kont, aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-               arrow = arrow(length = unit(0.2, "cm")), color = "black", size = 1) +
-  geom_text(aes(label = Naehrstoffzahl), vjust = -2, hjust = 0.5, size = 3) + # Für Beschriftung der Punkte mit Verbuschung
-  theme_minimal() +
-  labs(title = "NMDS mit Ellenberg-Zeigerwerten (Punktgröße nach Nährstoffzahl)", x = "NMDS1", y = "NMDS2")
 ```
 

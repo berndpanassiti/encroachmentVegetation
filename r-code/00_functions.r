@@ -283,3 +283,10 @@ autoplot.metaMDS <- function(x,
   print(g)
 }
 
+# round to 3 significant digit
+my_signif <- function(x, digits = 3) {
+  
+  round(x, pmax(digits - ceiling(log10(abs(x))), 0))
+  
+} 
+

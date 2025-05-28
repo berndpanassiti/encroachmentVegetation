@@ -233,7 +233,7 @@ ggplot(df, aes(x = Alm, y = Gesamtartenzahl, fill = Alm)) +
 
 
 ## Separately for each mountain pastures
-### wilcox test
+### Wilcox test
 ```{r}
 # Gepaarter Wilcoxon-Test und T-Test
 plot_data_t_test <- data.frame(
@@ -421,58 +421,130 @@ Appendix_S5 = ggplot(plot_data_reduziert, aes(x = AlmLabel, y = Gesamtartenzahl,
 
 ```
 
-# Boxplots for indicator values
+# Ellenberg indicator values
 
-
+## Data preparation
 ```{r}
-zeigerwerte_mittel <- readxl::read_excel("data/rawdata/Zeigerwerte_mittel_hl_sl.xlsx")
-zeigerwerte_box <- zeigerwerte_mittel
-veg_Verbuschung <- data.frame(rownames(veg_layer), plot_data[, 10])
-colnames(veg_Verbuschung) = c("Plot_ID", "Verbuschung")
-zeigerwerte_box <- merge(zeigerwerte_box, veg_Verbuschung, by = "Plot_ID", all.x = TRUE)
-zeigerwerte_box$Verbuschung <- as.factor(zeigerwerte_box$Verbuschung) 
+df1 <- zeigerwerte_mittel %>% dplyr::rename(
+  site_id = Plot_ID,
+  pasture = Alm,
+  light = Lichtzahl,
+  temperature = Temperaturzahl,
+  moisture = Feuchtezahl, 
+  reaction = Reaktionszahl,
+  nutrient = Naehrstoffzahl,
+  continentality = Kontinentalitaetszahl
+) 
 
-zeigerwerte_box$Alm <- factor(zeigerwerte_box$Alm , levels = c("Saletalm", "Engertalm",
-                                                   "Bindalm","Königsbachalm",
-                                                   "Halsalm","Königsbachalm 2",
-                                                   "Mittereisalm","Königsbergalm"))
+df2 = plot_data %>% dplyr::select(
+  site_id = Plot_ID,
+  encroachment = Verbuschung
+)
 
+levels(df2$encroachment) = c("control", "encroachment")
 
-zeiger_box_long <- zeigerwerte_box %>%
+df = merge(df1,df2,by="site_id",all.x=TRUE)
+
+df_long<- df %>%
   pivot_longer(
-    cols = c(Lichtzahl, Temperaturzahl, Feuchtezahl, Reaktionszahl, Naehrstoffzahl),
-    names_to = "Zeigerwert",
-    values_to = "Wert"
+    cols = c(light, temperature, moisture, reaction, nutrient,continentality),
+    names_to = "indicator",
+    values_to = "value"
   )
+
+# Calculate sample size per group per indicator
+sample_sizes <- df_long %>%
+  group_by(indicator, encroachment) %>%
+  summarise(n = n(), .groups = "drop")
+
+
+# Create a named vector for labeling
+label_mapping <- sample_sizes %>%
+  mutate(label = paste0(encroachment, "\n(n=", n, ")")) %>%
+  select(indicator, encroachment, label)
+
+# Create a named list of named vectors
+label_list <- label_mapping %>%
+  split(.$indicator) %>%
+  lapply(function(df) setNames(df$label, df$encroachment))
+
+# Create a df for annotations
+label_df <- df_long %>%
+  group_by(indicator, encroachment) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(
+    label = paste0("n = ", n)) %>% 
+  dplyr::filter(!indicator %in% 
+                            c("continentality","moisture"))
 ```
 
 
-
+## Boxplot
 ```{r}
-ggplot(zeiger_box_long, aes(x = Alm, y = Wert, fill = Verbuschung)) +
-  geom_boxplot(position = position_dodge(width = 0.8)) +  # Boxplots nebeneinander
-  facet_wrap(~ Zeigerwert, scales = "fixed") +  # Eine Facette pro Zeigerwert
-  labs(
-    title = "Ellenberg-Zeigerwerte für verschiedene Almen und Verbuschung",
-    x = "Alm",
-    y = "Zeigerwert"
+Fig5=df_long %>% dplyr::filter(!indicator %in% 
+                            c("continentality","moisture"))%>%
+ggplot(aes(x = encroachment, y = value, fill = encroachment)) +
+  geom_boxplot(position = position_dodge(width = 0.8)) +
+   geom_text(data = label_df, aes(label = label, y = 0), vjust = 1.5, 
+             size = 3, color = "black") +
+  facet_wrap(~ indicator, scales = "fixed") +
+  stat_compare_means(
+    comparisons = list(c("control", "encroachment")),
+    method = "wilcox.test",
+    label = "p.signif",
+    label.y = 8.5,
+    tip.length = 0.01     # adds the horizontal bracket
   ) +
-  scale_fill_manual(values = c("unverbuscht" = "#4CAF50", "verbuscht" = "#FF6347")) +  # Farben für Verbuschung
-  scale_y_continuous(breaks = scales::pretty_breaks(n = 5)) +
+  labs(
+    title = "",
+    x = "",
+    y = "Ellenberg indicator value"
+  ) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 5), 
+                     limits = c(0, 9)) +
+   coord_cartesian(clip = "off") +# allos text below 0
   theme_minimal() +
   theme(
-  axis.text.x = element_text(size = rel(1.2), angle = 45, hjust = 1),
-  axis.text.y = element_text(size = rel(1.2)),
-  strip.text = element_text(size = rel(1.2), face = "bold", margin = margin(b = 14)),
-  panel.spacing = unit(1, "lines")
-)
+    axis.text.x = element_text(size = 11,
+                               angle = 45, 
+                               hjust = 1,
+                               face = "bold"),
+    strip.text = element_text(size = 12, 
+                              face = "bold",
+     margin = margin(b = 14)),
+    panel.spacing = unit(1, "lines"))+
+  scale_fill_manual("Treatments:",values = 
+                       rev(ggsci::pal_jco("default")(3))[c(2,3)]); Fig5
 ```
+
+## Wilcox test
+```{r}
+# Example: Wilcoxon per indicator
+pvals <- df_long %>%
+  group_by(indicator) %>%
+  summarise(p = wilcox.test(value ~ encroachment)$p.value) %>%
+  mutate(p_formatted = format.pval(p, digits = 3, eps = 0.001))
+```
+
+
+ A tibble: 6 × 3
+  indicator             p p_formatted
+  <chr>             <dbl> <chr>      
+1 continentality 0.193    0.19270    
+2 light          0.000556 < 0.001    
+3 moisture       0.275    0.27535    
+4 nutrient       0.00212  0.00212    
+5 reaction       0.532    0.53175    
+6 temperature    0.113    0.11252 
 
 # save plots
 ```{r}
 save(
-  Appendix_S5,
+  Fig5,Appendix_S5,
   file="results/descriptive_analyses-final_plots.RData"
 )
 ```
+
+
+
 
