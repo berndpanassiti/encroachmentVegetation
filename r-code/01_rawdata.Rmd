@@ -94,9 +94,33 @@ rl_bayern_xlsx <- read_excel("data/rawdata/RL_Bayern.xlsx")
 ```
 
 # bioflor, phytosociology, biotop $30
-# Coordinates
+
+Bestimmungsschlüssel für Flächen nach §30 BNatSchG/Art. 23 BayNatSchGStand
+
+Tafel 33: Grünland mittlerer bis höherer Gebirgslagen
+Kriterien für Tafel 33
+Die Gesamtdeckung der Arten des obenstehenden Blocks muss
+mindestens 50 % betragen (A ≥ 4).
+Es müssen mindestens eine der mit 1 bezeichneten Arten, zwei der mit 2 bezeichneten, drei der mit 2 oder 3 bezeichneten Arten oder vier der mit 2, 3 oder 4 bezeichneten Arten vorkommen.
+
+
+Tafel 34: Grünland mäßig frischer bis trockener Standorte (von Tafel 9, 30 oder 41)
+Kriterien für Tafel 34
+1. Die Gesamtdeckung der unten aufgeführten Arten muss mindestens 25 % betragen (A ≥ 3).*
+stehenden Blocks sind nicht
+2. Es müssen mindestens eine der mit 1 bezeichneten Arten, zwei der mit 2 bezeichneten, drei der mit 2 oder 3 bezeichneten Arten oder vier der mit 2, 3 oder 4 bezeichneten Arten vorkommen.
+
+
+Tafel 35: Grünlandbestände auf Mager- oder Trockenstandorten mittlerer und tieferer Lagen
+Trockenrasen, Halbtrockenrasen, Sandmagerrasen, Borstgrasrasen und andere Magerrasengesellschaften in der Regel zweimal jährlich
+(extensiv beweidet bzw. i.d.R. nur einmal jährlich gemäht, inkl. junge magere Brachen)
+
+Kriterien für Tafel 35
+Es müssen mindestens eine der mit 1 bezeichneten Arten, zwei der mit 2 bezeichneten oder 3 der mit 2 oder 3 bezeichneten Arten vorkommen.
+
 ```{r}
-bioflorBiotop_xlsx <- read_excel("data/rawdata/BiolFlor_biotop.xlsx")
+bioflorBiotop_xlsx <- read_excel("data/rawdata/BiolFlor_biotop.xlsx",
+                                  na = "NA")
 ```
 
 

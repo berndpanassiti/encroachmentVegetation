@@ -538,36 +538,31 @@ traitsForest = df
 
 ### weight values
 ```{r}
+
+
+
 traits_weighted <- traitsForest %>% 
   mutate(mowingTolerance_weighted = cover*mowingTolerance, # jf NA then NA
          grazingTolerance_weighted = cover*grazingTolerance, # jf NA then NA
          tramplingTolerance_weighted = cover*tramplingTolerance, # jf NA then NA
-         forageValue_weighted = cover*forageValue) # jf NA then NA
+         forageValue_weighted = cover*forageValue, # jf NA then NA
+         table33_weighted = cover* table33,
+         table34_weighted = cover* table34,
+         table35_weighted = cover* table35,
+         table33_34 = case_when(
+      !is.na(table33) & !is.na(table34) ~ (table33 + table34) / 2,  # both present → mean
+      !is.na(table33) ~ table33,                                     # only table33
+      !is.na(table34) ~ table34,                                     # only table34
+      TRUE ~ NA_real_                                                # neither present
+    ),
+         table33_34_weighted = cover* table33_34,
+         forestAssociation_1.1_weighted  = cover * forestAssociation_1.1,
+         forestAssociation_2.1_weighted  = cover * forestAssociation_2.1,
+         )
 
-
-df1 = traits_weighted %>% dplyr::mutate(
-   table33_34 = case_when(
-      !is.na(table33) & !is.na(table34) ~ 1,  # both present → 1
-      !is.na(table33) ~ 1,
-      !is.na(table34) ~ 1,
-      TRUE ~ NA_real_    # neither present
-    ))
-
-
-df1$table35 = ifelse(df1$table35 > 0, 1, 0)
-traitsNew = df1
-
-traits_tb_onlyPresences = df1 %>% dplyr::filter(cover>0)
-
-df2 = data.frame(table(traits_tb_onlyPresences$plot_id))
-colnames(df2)[1] ="plot_id"
-
-traits_tb = merge(df1,df2,by="plot_id",all.x=TRUE)
-
-traitsSummaryPlot <- traits_tb%>% 
+traitsSummaryPlot <- traits_weighted%>% 
   dplyr::group_by(plot_id) %>% 
-  dplyr::summarise(freq= mean(Freq),
-                   richness = n_distinct(species),
+  dplyr::summarise(richness = n_distinct(species),
                    mowingTolerance_weighted = 
                      sum(mowingTolerance_weighted, na.rm = T)/100,
                    grazingTolerance_weighted = 
@@ -576,14 +571,18 @@ traitsSummaryPlot <- traits_tb%>%
                      sum(tramplingTolerance_weighted, na.rm = T)/100,
                    forageValue_weighted = 
                      sum(forageValue_weighted, na.rm = T)/100,
-                   table33_34_freq  = 
-                     sum(table33_34, na.rm = T)/freq,
-                   table35_freq  = 
-                     sum(table35, na.rm = T)/freq,
-         forestAssociation_1.1_freq   = 
-                     sum(forestAssociation_1.1, na.rm = T)/freq,
-         forestAssociation_2.1_freq   = 
-                     sum(forestAssociation_2.1, na.rm = T)/freq)
+                   table33_weighted  = 
+                     sum(table33_weighted, na.rm = T)/100,
+                   table34_weighted  = 
+                     sum(table34_weighted, na.rm = T)/100,
+                   table35_weighted  = 
+                     sum(table35_weighted, na.rm = T)/100,
+                   table33_34_weighted  = 
+                     sum(table33_34_weighted, na.rm = T)/100,
+         forestAssociation_1.1_weighted   = 
+                     sum(forestAssociation_1.1_weighted, na.rm = T)/100,
+         forestAssociation_2.1_weighted   = 
+                     sum(forestAssociation_2.1_weighted, na.rm = T)/100)
 
 ```
 
@@ -607,6 +606,6 @@ save(
 
  # RDA
  env_RDA, covar_RDA,spec_RDA.sqrt,
- waldarten,rl_bayern,bioflorBiotop,traitsSummaryPlot,traits,traitsNew,
+ waldarten,rl_bayern,bioflorBiotop,traitsSummaryPlot,
   file="data/workingdata.RData")
 ```
