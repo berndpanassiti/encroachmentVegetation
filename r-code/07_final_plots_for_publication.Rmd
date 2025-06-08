@@ -58,18 +58,29 @@ ggsave(plot = last_plot(), filename =
 ## Q1 - Figure 3
 forest, biotop, forage
 ```{r}
-ggarrange(gRDA_forest, gRDA_biotope, gRDA_forage,
-          labels = c("(A)", "(B)", "(C)"),
-          ncol = 3, nrow = 1)
+combined_plot = ggarrange(
+  gRDA_forest, gRDA_biotope, gRDA_forage,
+          labels = c("(A) ", "(B)", "(C)"),
+          ncol = 3, nrow = 1,
+          label.x = c(-0.07, -0.07, -0.07))
 
 # save plot
-size <- dev.size("in")
-ggsave(plot = last_plot(), filename =
-         paste("figures/Fig3.png",sep=""),
-       width = size[1]+2, 
-       height = size[2], 
-       units = "in",
-       dpi = 300,
+# Add extra left margin to gRDA_forest
+gRDA_forest <- gRDA_forest + 
+  theme(plot.margin = margin(t = 5, r = 5, b = 5, l = 20))  # l = 60 pt ≈ ~0.85 inches
+
+# Combine again
+combined_plot <- ggarrange(
+  gRDA_forest, gRDA_biotope, gRDA_forage,
+  labels = c("(A)", "(B)", "(C)"),
+  ncol = 3, nrow = 1,
+  label.x = c(0, -0.07, -0.07)
+);combined_plot
+
+# Save using ggsave
+ggsave("figures/Fig3.png", plot = combined_plot,
+       width = 15, height = 7, 
+       dpi = 300, units = "in", 
        bg = "white")
 ```
 
@@ -105,7 +116,7 @@ Fig5
 ggsave("figures/Fig5.png",
        plot = last_plot(),
        device = "png",
- width = 7, height = 7, 
+ width = 7, height = 5, 
  units = "in", 
  dpi = 300,
  bg = "white")

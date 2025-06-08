@@ -24,7 +24,7 @@ opts_chunk$set(fig.align='center',                # aligns all figures
 #Install/load pacman
 if(!require(pacman)){install.packages("pacman");require(pacman)}
 #Install packages
-p_load(tidyverse,dplyr,vegan,ggplot2,magrittr)
+p_load(tidyverse,dplyr,vegan,ggplot2,magrittr,multcompView)
 ```
 
 # load data and functions
@@ -206,7 +206,7 @@ fit <- envfit(nmds, indicatorValues_mean[, c("light",
 
 nmds_points <- as.data.frame(scores(nmds, display = "sites"))
 nmds_points$Site <- rownames(nmds_points)
-veg_Verbuschung <- data.frame(rownames(veg_layer), df2_sorted2[, 10])
+veg_Verbuschung <- data.frame(rownames(veg_layer), df2_sorted[, 10])
 colnames(veg_Verbuschung) = c("Site", "treatment")
 
 indicatorValues_mean_nmds <- indicatorValues_mean %>%
@@ -254,9 +254,9 @@ Appendix_S6 = ggplot() +
         color = treatment, 
         size = encroachment) ) +
   scale_color_manual("Treatments:",
-        values =   rev(
-          ggsci::pal_jco("default")(3))[c(2,3)])+
-  scale_size_continuous(range = c(3, 10)) +
+        values =  c("#d9d9d9", "#969696"))+
+  scale_size_continuous("Encroachment gradient (%):",
+                        range = c(3, 10)) +
   geom_segment(data = vector_fit, 
                aes(x = 0, y = 0, 
                    xend = NMDS1, 

@@ -23,7 +23,7 @@ opts_chunk$set(fig.align='center',                # aligns all figures
 #Install/load pacman
 if(!require(pacman)){install.packages("pacman");require(pacman)}
 #Install packages
-p_load(tidyverse,dplyr,ggplot2,ggpubr,rcompanion,magrittr)
+p_load(tidyverse,dplyr,ggplot2,ggpubr,rcompanion,magrittr,multcompView)
 ```
 
 # Load working data
@@ -348,17 +348,17 @@ Appendix_S5 = ggplot(plot_data_reduziert, aes(x = AlmLabel, y = Gesamtartenzahl,
     x = "",
     y = "Plant species richness",
     fill = "Treaments") +
-    scale_fill_manual("Treatments:",values = 
-                       rev(ggsci::pal_jco("default")(3))[c(2,3)],
+   scale_fill_manual("Treatments:",values = 
+                        c("#d9d9d9", "#969696"),
                     labels = c("unverbuscht" = "Control", "verbuscht" = "Encroachment")) +
   stat_summary(# Mittelwerte anzeigen und zur Legende hinzufügen
     fun = mean, 
     geom = "point", 
     aes(group = Verbuschung, shape = "Mittelwert"),  # Gruppierung beibehalten
     position = position_dodge(width = 0.75),# Verschiebt Quadrate passend zu den Boxplots
-    size = 4,  # Größe des Quadrats  # Quadrat
-    color = "black", 
-    fill = "white",
+    shape = 20,
+    size = 3,  # Größe des Quadrats  # Quadrat
+    color = "red",
     show.legend = FALSE) +
   geom_text( # Text für die Stichprobenanzahl unter den Boxplots
     data = sample_sizes,
@@ -475,16 +475,20 @@ label_df <- df_long %>%
   mutate(
     label = paste0("n = ", n)) %>% 
   dplyr::filter(!indicator %in% 
-                            c("continentality","moisture"))
+                            c("continentality","moisture",
+                              "reaction","temperature"))
 ```
 
 
 ## Boxplot
 ```{r}
 Fig5=df_long %>% dplyr::filter(!indicator %in% 
-                            c("continentality","moisture"))%>%
+                            c("continentality","moisture",
+                              "reaction","temperature"))%>%
 ggplot(aes(x = encroachment, y = value, fill = encroachment)) +
   geom_boxplot(position = position_dodge(width = 0.8)) +
+    stat_summary(fun = mean, geom = "point", shape = 20, 
+               size = 3, color = "red") +
    geom_text(data = label_df, aes(label = label, y = 0), vjust = 1.5, 
              size = 3, color = "black") +
   facet_wrap(~ indicator, scales = "fixed") +
@@ -513,8 +517,9 @@ ggplot(aes(x = encroachment, y = value, fill = encroachment)) +
                               face = "bold",
      margin = margin(b = 14)),
     panel.spacing = unit(1, "lines"))+
-  scale_fill_manual("Treatments:",values = 
-                       rev(ggsci::pal_jco("default")(3))[c(2,3)]); Fig5
+   scale_fill_manual(values = c("#d9d9d9", "#969696")); Fig5
+   #scale_fill_manual("Treatments:",values = 
+   #                     rev(ggsci::pal_jco("default")(3))[c(2,3)])
 ```
 
 ## Wilcox test

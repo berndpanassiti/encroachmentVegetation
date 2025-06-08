@@ -83,7 +83,51 @@ temperaturzahlen_xlsx <- readxl::read_excel("data/rawdata/Temperaturzahlen.xlsx"
 ```
 
 
-# Forest associatoin
+# Forest association
+https://www.nw-fva.de/forschen/projekte/waldartenlisten
+
+Innerhalb der Waldartenliste werden vier Gruppen der Waldbindung unterschieden, die zwei
+Hauptgruppen zugeordnet sind:
+1 weitgehend an Wald gebunden
+1.1 vorwiegend im geschlossenen Wald
+1.2 vorwiegend an Waldrändern und auf Waldverlichtungen
+2 im Wald und im Offenland
+2.1 im Wald wie im Offenland
+2.2 auch im Wald, aber Schwerpunkt im Offenland
+
+Eine weitere Differenzierung erfolgt über die vorangestellten Buchstaben. Bei Gefäßpflanzen werden die
+Buchstaben B (Bäume), S (Sträucher), K (Kräuter) sowie E (Epiphyten), bei Moosen M und bei Flechten
+F verwendet.
+
+Hauptgruppe 1 enthält alle weitgehend an Wald gebundenen Taxa, während die in Hauptgruppe 2
+zusammengefassten sowohl im Wald als auch im Offenland vorkommen. Die Arten mit dem höchsten
+Grad der Waldbindung sind in Hauptgruppe 1 zusammengefasst. Gruppe 1.1 beinhaltet diejenigen Taxa,
+die vorwiegend im geschlossenen Wald zu finden sind, während Gruppe 1.2 vorwiegend für Waldränder
+und Waldverlichtungen typische Sippen umfasst. Hierzu zählen Arten der Waldaußen- und
+Waldinnensäume ebenso wie Arten, die nach Windwurf bzw. Kahlschlag oder durch die Anlage von
+Rückelinien und Wegen gefördert werden. Auch viele Arten mit enger Bindung an standortbedingt lichte
+Wälder, vor allem auf flachgründigen oder blockreichen Hängen, gehören in die Gruppe 1.2. Nahezu alle
+in dieser Gruppe genannten Sippen können auch im geschlossenen Wald vorkommen, sind dort aber meist
+nur mit geringen Mengenanteilen zu finden. Ein Teil der in Hauptgruppe 1 eingestuften Arten kann
+vereinzelt auch in von Gehölzen geprägten Lebensräumen außerhalb des Waldes auftreten, so
+beispielsweise im Bereich von Hecken, Feldgehölzen, Latschen- und Grünerlengebüschen.
+Arten der Hauptgruppe 2 sind sowohl im Wald als auch im Offenland verbreitet. Die Gruppe 2.1 enthält
+Arten, die im Wald gleichermaßen wie im Offenland zu finden sind. Die Arten der Gruppe 2.2 haben
+dagegen ihren Schwerpunkt im Offenland, kommen aber auch regelmäßig im Wald vor. Für eine
+Zuordnung zu einer der beiden Gruppen spielt die aktuelle Häufigkeit der einzelnen Arten im Wald bzw.
+im Offenland keine Rolle. Entscheidend ist in Zweifelsfällen die Frage, ob eine Art Bestandteil naturnaher
+Waldtypen ist (Gruppe 2.1) oder nicht (Gruppe (2.2).
+Ein großer Teil der Arten von Gruppe 2.1 hat seine ursprünglichen Wuchsorte vermutlich in Wäldern und
+ist von hier in die Offenland-Lebensräume der Kulturlandschaft eingewandert bzw. konnte nach Rodung
+der Wälder am Wuchsort überdauern. Dagegen zählen zur Gruppe 2.2 viele Sippen, die erst durch Aufforstung
+von Offenland (Zwergstrauchheiden, Kalk- und Sandmagerrasen, Feuchtwiesen etc.) zu Bewohnern
+lichter Wälder wurden. Hierher gehören auch Arten beweideter Waldstandorte, wie sie heute fast
+nur noch in den Alpen vorkommen. Insgesamt zeichnen sich viele Arten der Gruppe 2.2 durch einen
+hohen Lichtbedarf aus (Abb. 2). Da die Arten der Gruppe 2.2 in einigen Waldtypen, z. B. in Kiefernwäldern,
+als „Sukzessionsreste“ über lange Zeiträume existieren und hier charakteristisch sind, werden sie in
+der Liste der Waldgefäßpflanzen aufgeführt, auch wenn ihr Schwerpunkt im Offenland liegt.
+
+
 ```{r}
 waldarten_xlsx <- read_excel("data/rawdata/Waldarten.xlsx")
 ```
